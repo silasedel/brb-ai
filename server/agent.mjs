@@ -14,6 +14,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { PERSONA, DETAIL_MODE, TITLE_PROMPT } from './persona.mjs';
+import { doodleServer, drawStatus, DRAW_TOOL_NAME } from './draw.mjs';
 
 const require_ = createRequire(import.meta.url);
 
@@ -127,8 +128,9 @@ function classifyError(err) {
   return { kind: 'unknown', message: raw.slice(0, 400) };
 }
 
-function baseOptions({ model, effort, webSearch, signal }) {
+function baseOptions({ model, effort, webSearch, canDraw, signal }) {
   const tools = webSearch ? ['WebSearch', 'WebFetch'] : [];
+  if (canDraw) tools.push(DRAW_TOOL_NAME);
   return {
     model,
     effort,
@@ -137,6 +139,7 @@ function baseOptions({ model, effort, webSearch, signal }) {
     systemPrompt: { type: 'custom', prompt: PERSONA },
     tools,
     allowedTools: tools,
+    ...(canDraw ? { mcpServers: { doodle: doodleServer } } : {}),
     // Only read-only web tools are ever available, so nothing here can touch the disk.
     permissionMode: 'bypassPermissions',
     // Ignore the user's CLAUDE.md and global settings; they would leak coding-agent
@@ -162,9 +165,26 @@ function abortControllerFrom(signal) {
  * Streams one assistant reply.
  * `onEvent` receives {type:'delta'|'tool'|'thinking'|'done'|'error', ...}.
  */
+/** Describes the drawing ability, listing exactly what it was trained on. */
+async function drawBlock() {
+  const st = await drawStatus();
+  if (!st.ready || !st.classes?.length) return { block: '', canDraw: false };
+  return {
+    canDraw: true,
+    block: `\n\n# u can draw now
+u have a \`draw\` tool. its an image model that was trained from scratch on this machine — claude cant make images, but this can, so use it whenever someone asks for a picture.
+
+it only knows these ${st.classes.length} things: ${st.classes.join(', ')}.
+map what they asked to the closest one ("kitty" -> cat, "slice" -> pizza). if nothing fits, say what u can draw instead of refusing flatly.
+the drawings are 28x28 doodles and genuinely rough. own it — thats the charm, dont apologise for it.
+when the tool gives u a markdown image line, paste it into ur reply exactly, on its own line.`,
+  };
+}
+
 export async function streamReply({ history, message, detail, model, effort, webSearch, memoryBlock = '', signal, onEvent }) {
-  const opts = baseOptions({ model, effort, webSearch, signal });
-  const base = `${PERSONA}${memoryBlock}`;
+  const { block: drawing, canDraw } = await drawBlock();
+  const opts = baseOptions({ model, effort, webSearch, canDraw, signal });
+  const base = `${PERSONA}${memoryBlock}${drawing}`;
   opts.systemPrompt = { type: 'custom', prompt: detail ? `${base}\n\n# right now\n${DETAIL_MODE}` : base };
 
   let text = '';

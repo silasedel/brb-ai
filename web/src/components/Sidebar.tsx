@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Search, Trash, Pencil, Pin, Sliders, Sun, Moon, Keyboard, Key, Brain } from './Icons';
+import { Plus, Search, Trash, Pencil, Pin, Sliders, Sun, Moon, Keyboard, Key, Brain, Brush } from './Icons';
 import type { ConvoMeta, Settings } from '../types';
 
 interface Props {
@@ -22,6 +22,7 @@ interface Props {
   hasKey?: boolean;
   onOpenMemory: () => void;
   memoryCount: number;
+  canDraw?: boolean;
 }
 
 const DAY = 86_400_000;
@@ -161,6 +162,11 @@ export function Sidebar(p: Props) {
           {p.settings.theme === 'dark' ? <Moon size={15} /> : <Sun size={15} />}
           {p.settings.theme === 'dark' ? 'dark' : 'light'} mode
         </button>
+        {p.canDraw && (
+          <a className="foot-btn" href="/learn" target="_blank" rel="noreferrer">
+            <Brush size={15} /> how it learned to draw
+          </a>
+        )}
         <button className="foot-btn" onClick={p.onOpenMemory}>
           <Brain size={15} /> memory
           {p.memoryCount ? <span className="count">{p.memoryCount}</span> : <span className="spacer">empty</span>}

@@ -593,3 +593,19 @@ kbd {
 @media (max-width: 820px) {
   .bubble-wrap.wide-auto { max-width: 88%; }
 }
+
+/* ====================== generated drawings ====================== */
+.md img {
+  display: block;
+  max-width: 100%;
+  width: 168px;
+  image-rendering: pixelated;   /* 28px doodles upscaled -- keep them crisp, not blurry */
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  margin: 6px 0;
+}
+.md p:has(> img) { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.md p:has(> img) img { margin: 0; }
+
+a.foot-btn { text-decoration: none; }

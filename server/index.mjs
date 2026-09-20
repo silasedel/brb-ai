@@ -224,6 +224,35 @@ app.post('/api/conversations/:id/edit', async (req, res) => {
   });
 });
 
+/* --------------------------- training view --------------------------- */
+
+// Epoch sample grids and the loss log, for the "watch it learn" page.
+app.use('/api/gen/epochs', express.static(path.join(ROOT, 'gen', 'out'), {
+  setHeaders: (res, p) => {
+    if (p.endsWith('.png')) res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'no-cache');
+  },
+}));
+
+app.get('/learn', (_req, res) => res.sendFile(path.join(ROOT, 'server', 'learn.html')));
+
+/* ------------------------------ drawings ------------------------------ */
+
+// Generated doodles, served straight from the generator's output folder.
+app.use('/api/gen/img', express.static(path.join(ROOT, 'gen', 'out', 'images'), {
+  maxAge: '1y',
+  setHeaders: (res) => res.setHeader('Content-Type', 'image/png'),
+}));
+
+app.get('/api/gen/status', async (_req, res) => {
+  try {
+    const r = await fetch(`http://127.0.0.1:${process.env.GEN_PORT ?? 4319}/status`);
+    res.json(await r.json());
+  } catch {
+    res.json({ ready: false, classes: [] });
+  }
+});
+
 /* ----------------------------- check-ins ----------------------------- */
 
 app.get('/api/checkins', (_req, res) => res.json(checkins.config()));

@@ -26,3 +26,4 @@ export const Keyboard = ({ size }: P) => <svg {...s(size)}><rect x="2" y="6" wid
 export const X = ({ size }: P) => <svg {...s(size)}><path d="M18 6 6 18M6 6l12 12" /></svg>;
 export const Key = ({ size }: P) => <svg {...s(size)}><circle cx="7.5" cy="15.5" r="4" /><path d="m10.5 12.5 8-8M16 7l2.5 2.5M13.5 9.5 16 12" /></svg>;
 export const Wave = ({ size = 14 }: P) => <svg {...s(size)}><path d="M3 12h3l2.5-7 3 14 2.5-9 2 4h5" /></svg>;
+export const Brush = ({ size }: P) => <svg {...s(size)}><path d="M9.5 14.5 3 21s3.5.5 5-1 .5-4 .5-4Z" /><path d="M12 12.5 19.5 4a2.1 2.1 0 0 1 3 3L14 14.5Z" /></svg>;

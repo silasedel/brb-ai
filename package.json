@@ -11,7 +11,10 @@
     "dev:web": "vite",
     "dev": "node scripts/dev.mjs",
     "login": "node scripts/login.mjs",
-    "build:site": "VITE_STANDALONE=1 vite build && touch docs/.nojekyll"
+    "build:site": "VITE_STANDALONE=1 vite build && touch docs/.nojekyll",
+    "train": "python3 gen/train.py",
+    "draw": "python3 gen/serve.py",
+    "fetch-data": "python3 gen/fetch_data.py"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.278",

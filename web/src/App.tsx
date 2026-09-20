@@ -38,7 +38,7 @@ export default function App() {
   const [input, setInput] = useState('');
   const [detail, setDetail] = useState(false);
   const [streaming, setStreaming] = useState(false);
-  const [toolNote, setToolNote] = useState<string | null>(null);
+  const [toolNote, setToolNote] = useState<{ name: string; detail: string } | null>(null);
   const [authError, setAuthError] = useState(false);
   const [rechecking, setRechecking] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 820);
@@ -49,6 +49,7 @@ export default function App() {
   const [showMemory, setShowMemory] = useState(false);
   const [memoryCount, setMemoryCount] = useState(0);
   const [checkins, setCheckins] = useState<CheckInConfig | null>(null);
+  const [canDraw, setCanDraw] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(() => backend.getKey?.() ?? null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -113,6 +114,13 @@ export default function App() {
 
   useEffect(() => { backend.getCheckins().then(setCheckins).catch(() => {}); }, []);
 
+  // The drawing model only exists on the local build, and only once trained.
+  useEffect(() => {
+    if (backend.standalone) return;
+    fetch('/api/gen/status').then((r) => r.json())
+      .then((s) => setCanDraw(!!s.ready)).catch(() => {});
+  }, []);
+
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
   useEffect(() => {
@@ -145,7 +153,7 @@ export default function App() {
 
   /** Applies streamed events to the trailing placeholder assistant message. */
   const handleEvent = useCallback((e: StreamEvent, convoId: string) => {
-    if (e.type === 'tool') { setToolNote(e.detail?.slice(0, 60) ?? ''); return; }
+    if (e.type === 'tool') { setToolNote({ name: e.name, detail: (e.detail ?? '').slice(0, 60) }); return; }
     if (e.type === 'delta') {
       setToolNote(null);
       setConvo((c) => {
@@ -374,6 +382,7 @@ export default function App() {
         onDelete={deleteChat}
         onOpenSettings={() => setShowSettings(true)}
         onOpenShortcuts={() => setShowShortcuts(true)}
+        canDraw={canDraw}
         onOpenMemory={() => setShowMemory(true)}
         memoryCount={memoryCount}
         onOpenKey={backend.standalone ? () => setShowKey(true) : undefined}

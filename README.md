@@ -85,6 +85,51 @@ inspect or correct is a liability, so all of it is visible and yours.
 
 ---
 
+## It can draw — using a model it trained itself
+
+Claude cannot produce an image. Not a limitation of the app; the model simply
+has no way to emit pixels. So the app ships with one that does.
+
+`gen/` is a **class-conditional diffusion model written from scratch** — no
+`diffusers`, no pretrained weights, no model zoo. Just the DDPM maths, a small
+UNet, a cosine noise schedule and classifier-free guidance. 1.96M parameters,
+trained on **1.9 million human doodles** from Google's Quick Draw set across 16
+subjects.
+
+Then it's handed to the chat as a tool:
+
+```
+you   yo draw me a house
+
+brb   [ a small, wobbly house ]
+brb   lil 28x28 guy
+brb   not exactly architectural but it's got vibes
+```
+
+Drawings take about **750ms** (60-step DDIM; full 400-step sampling took 10s and
+was too slow to sit behind a chat message).
+
+### Watch it learn
+
+`http://localhost:4317/learn`
+
+The same 16 prompts, re-rendered after every training pass, so you watch them
+resolve out of pure static. It updates live while training runs, with a scrubber
+and the loss curve. This is the good bit.
+
+### Training it yourself
+
+```bash
+npm run fetch-data   # ~2GB of Quick Draw bitmaps
+npm run train        # ~2 hours on an M3 Max, checkpoints every epoch
+npm run draw         # serves the finished model to the chat
+```
+
+The model is usable from the first epoch — it just gets better. Loss went
+0.0914 → 0.0660 between epochs 1 and 2, by which point bicycles had two wheels.
+
+---
+
 ## It texts like a person, not a chatbot
 
 Every other assistant answers in one block of prose. This one doesn't.
@@ -164,6 +209,7 @@ Don't want it? One switch in settings. It never fires between 11pm and 8am.
 - Web search built in — it looks things up when it would otherwise be guessing
 - **Detail mode** (`⌘⇧D`): the escape hatch for when you genuinely want the
   long, thorough version
+- **Draws pictures** with a diffusion model trained from scratch, on your machine
 - **Multi-text replies, tapback reactions, energy matching, interruptible**
 - **Persistent memory** across every conversation, fully editable
 - **Proactive check-ins** — it starts conversations when it has a reason to
@@ -205,8 +251,13 @@ Nothing is sent anywhere except your messages going to Anthropic to be answered.
 ## Layout
 
 ```
+gen/
+  model.py      diffusion model + UNet, written from scratch
+  train.py      training loop, writes a sample grid every epoch
+  serve.py      keeps the trained model warm, draws on request
 server/
   index.mjs     HTTP + NDJSON streaming
+  draw.mjs      exposes the generator to the chat as a tool
   agent.mjs     Claude Agent SDK wrapper, auth probe
   persona.mjs   the personality
   memory.mjs    fact extraction + recall

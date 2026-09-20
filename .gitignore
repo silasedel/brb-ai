@@ -3,3 +3,10 @@ web/dist/
 data/
 *.log
 .DS_Store
+
+# The generator's training data is ~2GB of Quick Draw dumps, re-downloadable
+# with `npm run fetch-data`. Checkpoints and generated images are build output.
+gen/data/
+gen/out/
+__pycache__/
+*.pyc

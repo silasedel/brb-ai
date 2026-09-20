@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>watching it learn to draw</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600&family=Instrument+Serif&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper:#fbfaf7; --surface:#fff; --surface-2:#f3f1ec; --line:#e4e0d8;
+    --ink:#191815; --ink-2:#5d5950; --ink-3:#8c877d; --accent:#14664a;
+    --font:'Inter',-apple-system,system-ui,sans-serif; --display:'Instrument Serif',Georgia,serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box} html,body{margin:0;height:100%}
+  body{background:var(--paper);color:var(--ink);font-family:var(--font);
+       display:flex;align-items:flex-start;justify-content:center;padding:32px 28px 40px;
+       min-height:100%;-webkit-font-smoothing:antialiased}
+  .wrap{width:100%;max-width:980px}
+  h1{font-family:var(--display);font-weight:400;font-size:46px;margin:0 0 6px;letter-spacing:-.02em}
+  .sub{color:var(--ink-2);font-size:15px;margin:0 0 26px;max-width:620px;line-height:1.55}
+  .sub b{color:var(--ink);font-weight:600}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px;
+         box-shadow:0 12px 34px -14px rgba(25,24,21,.16)}
+  .head{display:flex;align-items:baseline;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+  .epoch{font-family:var(--display);font-size:34px;line-height:1}
+  .stat{font-size:12.5px;color:var(--ink-3)}
+  .stat b{color:var(--ink);font-weight:600;font-family:var(--mono);font-size:12px}
+  .grid{display:grid;grid-template-columns:repeat(8,1fr);gap:9px 8px}
+  .tile{display:flex;flex-direction:column;gap:4px}
+  .cell{position:relative;background:var(--surface-2);border:1px solid var(--line);
+        border-radius:9px;overflow:hidden;aspect-ratio:1}
+  .cell img{position:absolute;width:800%;height:400%;max-width:none;display:block;
+            image-rendering:pixelated}
+  .tile span{font-size:9px;letter-spacing:.04em;text-transform:uppercase;
+             text-align:center;color:var(--ink-3);line-height:1}
+  .controls{display:flex;align-items:center;gap:12px;margin-top:20px;flex-wrap:wrap}
+  button{font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+         padding:8px 16px;border-radius:9px;cursor:pointer;font-size:13.5px;font-weight:500;transition:.14s}
+  button:hover{background:var(--surface-2)}
+  button.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  button.primary:hover{opacity:.87}
+  input[type=range]{flex:1;min-width:180px;accent-color:var(--accent)}
+  .loss{margin-top:22px;border-top:1px solid var(--line);padding-top:18px}
+  .loss-label{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);margin-bottom:9px}
+  svg{width:100%;height:80px;display:block;overflow:visible}
+  .waiting{padding:60px 20px;text-align:center;color:var(--ink-3);font-size:14px}
+  .waiting b{display:block;color:var(--ink-2);font-size:16px;margin-bottom:6px}
+  @media(max-width:700px){.grid{grid-template-columns:repeat(4,1fr)}h1{font-size:34px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>watching it learn to draw</h1>
+  <p class="sub">
+    A diffusion model built from scratch — no ML libraries, no pretrained weights — trained on
+    1.9&nbsp;million human doodles. Every frame below is the model being asked for the same
+    16 things. <b>It starts as pure static.</b>
+  </p>
+  <div class="panel" id="panel">
+    <div class="waiting"><b>waiting for the first epoch…</b>training writes a frame each time it finishes a pass</div>
+  </div>
+</div>
+
+<script>
+const CLASS_ORDER = [];   // filled from log.json
+let epochs = [], idx = 0, playing = false, timer = null;
+
+const $ = (s, r = document) => r.querySelector(s);
+
+async function poll() {
+  try {
+    const log = await (await fetch('/api/gen/epochs/log.json?t=' + Date.now())).json();
+    const n = log.epochs.length;
+    if (n && !CLASS_ORDER.length) CLASS_ORDER.push(...log.classes);
+    if (n !== epochs.length) {
+      const wasAtEnd = idx >= epochs.length - 1;
+      epochs = log.epochs;
+      if (!$('#grid')) build();
+      if (wasAtEnd) idx = epochs.length - 1;
+      render();
+    }
+  } catch {}
+  setTimeout(poll, 4000);
+}
+
+function build() {
+  // Each class was sampled twice, so the grid reads left-to-right in pairs.
+  const labels = CLASS_ORDER.flatMap(c => [c, c]);
+  $('#panel').innerHTML = `
+    <div class="head">
+      <div class="epoch" id="ep">epoch 1</div>
+      <div class="stat">loss <b id="loss">–</b></div>
+      <div class="stat">pass took <b id="secs">–</b></div>
+      <div class="stat" id="count"></div>
+    </div>
+    <div class="grid" id="grid">
+      ${labels.map(l => `<div class="tile"><div class="cell"><img alt="${l}"></div><span>${l}</span></div>`).join('')}
+    </div>
+    <div class="controls">
+      <button class="primary" id="play">▶ play</button>
+      <input type="range" id="scrub" min="0" value="0" />
+      <button id="first">first</button>
+      <button id="last">latest</button>
+    </div>
+    <div class="loss">
+      <div class="loss-label">training loss</div>
+      <svg id="chart" viewBox="0 0 600 80" preserveAspectRatio="none"></svg>
+    </div>`;
+
+  $('#play').onclick = togglePlay;
+  $('#first').onclick = () => { stop(); idx = 0; render(); };
+  $('#last').onclick = () => { stop(); idx = epochs.length - 1; render(); };
+  $('#scrub').oninput = e => { stop(); idx = +e.target.value; render(); };
+}
+
+function render() {
+  if (!epochs.length) return;
+  idx = Math.max(0, Math.min(idx, epochs.length - 1));
+  const e = epochs[idx];
+  $('#ep').textContent = 'epoch ' + e.epoch;
+  $('#loss').textContent = e.loss.toFixed(4);
+  $('#secs').textContent = e.seconds + 's';
+  $('#count').textContent = epochs.length + ' epochs so far';
+  $('#scrub').max = epochs.length - 1;
+  $('#scrub').value = idx;
+
+  // One sprite sheet per epoch; each cell shows its own 28x28 tile.
+  const url = `/api/gen/epochs/epoch_${String(e.epoch).padStart(2, '0')}.png?t=${e.loss}`;
+  document.querySelectorAll('.cell img').forEach((img, i) => {
+    // The sheet is 8 tiles wide by 4 tall, so the image is blown up 800%x400%
+    // and shifted by whole cell-widths to bring the right tile into the window.
+    const col = i % 8, row = (i / 8) | 0;
+    img.style.left = `${-col * 100}%`;
+    img.style.top = `${-row * 100}%`;
+    if (!img.src.includes(url.split('?')[0]) || img.dataset.loss !== String(e.loss)) {
+      img.src = url;
+      img.dataset.loss = String(e.loss);
+    }
+  });
+  chart();
+}
+
+function chart() {
+  const svg = $('#chart'), n = epochs.length;
+  if (n < 2) { svg.innerHTML = ''; return; }
+  const losses = epochs.map(e => e.loss);
+  const min = Math.min(...losses), max = Math.max(...losses), span = (max - min) || 1;
+  const pt = (v, i) => [i / (n - 1) * 600, 76 - (v - min) / span * 68];
+  const d = losses.map((v, i) => (i ? 'L' : 'M') + pt(v, i).map(x => x.toFixed(1)).join(' ')).join(' ');
+  const [cx, cy] = pt(losses[idx], idx);
+  svg.innerHTML =
+    `<path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>` +
+    `<circle cx="${cx}" cy="${cy}" r="4" fill="var(--accent)"/>`;
+}
+
+function togglePlay() {
+  playing ? stop() : start();
+}
+function start() {
+  playing = true; $('#play').textContent = '❚❚ pause';
+  timer = setInterval(() => {
+    idx = (idx + 1) % epochs.length;
+    render();
+  }, 700);
+}
+function stop() {
+  playing = false; clearInterval(timer);
+  const b = $('#play'); if (b) b.textContent = '▶ play';
+}
+
+poll();
+</script>
+</body>
+</html>

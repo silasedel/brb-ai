@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Markdown } from './Markdown';
-import { Copy, Check, Refresh, Pencil, Globe, Brain, Wave, X } from './Icons';
+import { Copy, Check, Refresh, Pencil, Globe, Brain, Wave, Brush, X } from './Icons';
 import { parseReply } from '../reply';
 import type { Message } from '../types';
 
 interface Props {
   msg: Message;
   streaming: boolean;
-  toolNote: string | null;
+  toolNote: { name: string; detail: string } | null;
   isLastAssistant: boolean;
   /** Tapback this message received, taken from the reply that followed it. */
   reaction?: string | null;
@@ -106,14 +106,17 @@ export function MessageBubble({ msg, streaming, toolNote, isLastAssistant, react
       <div className="bubble-wrap wide-auto">
         {msg.checkin && <div className="checkin-tag"><Wave size={12} /> brb texted you first</div>}
 
-        {toolNote !== null && streaming && (
-          <div className="tool-chip">
-            <span className="dot" />
-            <Globe />
-            searching
-            {toolNote && <span className="q">{toolNote}</span>}
-          </div>
-        )}
+        {toolNote && streaming && (() => {
+          const drawing = toolNote.name.includes('draw');
+          return (
+            <div className="tool-chip">
+              <span className="dot" />
+              {drawing ? <Brush size={12} /> : <Globe />}
+              {drawing ? 'drawing' : 'searching'}
+              {toolNote.detail && <span className="q">{toolNote.detail}</span>}
+            </div>
+          );
+        })()}
 
         {msg.error ? (
           <div className="bubble errored" style={{ fontSize: 13.5 }}>{msg.error.message}</div>
