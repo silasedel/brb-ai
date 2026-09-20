@@ -57,11 +57,12 @@ def to_png(sample, path, scale=6):
     write_png(path, rows)
 
 
-def draw(label_idx, n, guidance, steps):
+def draw(label_idx, n, guidance, steps, capture=0):
     with _lock:
         model, diff = _state['model'], _state['diff']
         labels = torch.full((n,), label_idx, device=dev, dtype=torch.long)
-        return diff.sample_ddim(model, labels, len(_state['classes']), guidance=guidance, steps=steps)
+        return diff.sample_ddim(model, labels, len(_state['classes']),
+                                guidance=guidance, steps=steps, capture=capture)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -117,7 +118,20 @@ class Handler(BaseHTTPRequestHandler):
         n = max(1, min(4, int(body.get('n', 1))))
         guidance = float(body.get('guidance', 3.0))
         steps = max(20, min(200, int(body.get('steps', 60))))
+        capture = max(0, min(24, int(body.get('capture', 0))))
         t0 = time.time()
+
+        if capture:
+            samples, frames = draw(idx, 1, guidance, steps, capture)
+            stamp = int(time.time() * 1000)
+            urls = []
+            for k, fr in enumerate(frames):
+                name = f'step_{stamp}_{k:02d}.png'
+                to_png(fr[0], os.path.join(IMG, name))
+                urls.append(f'/api/gen/img/{name}')
+            return self._send(200, {'subject': classes[idx], 'frames': urls,
+                                    'ms': int((time.time() - t0) * 1000)})
+
         samples = draw(idx, n, guidance, steps)
 
         urls = []

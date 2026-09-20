@@ -244,6 +244,19 @@ app.use('/api/gen/img', express.static(path.join(ROOT, 'gen', 'out', 'images'), 
   setHeaders: (res) => res.setHeader('Content-Type', 'image/png'),
 }));
 
+app.post('/api/gen/draw', async (req, res) => {
+  try {
+    const r = await fetch(`http://127.0.0.1:${process.env.GEN_PORT ?? 4319}/draw`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body ?? {}),
+    });
+    res.status(r.status).json(await r.json());
+  } catch {
+    res.status(503).json({ error: 'drawing model not running' });
+  }
+});
+
 app.get('/api/gen/status', async (_req, res) => {
   try {
     const r = await fetch(`http://127.0.0.1:${process.env.GEN_PORT ?? 4319}/status`);

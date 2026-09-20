@@ -135,7 +135,7 @@ class Diffusion:
         return x.clamp(-1, 1)
 
     @torch.no_grad()
-    def sample_ddim(self, model, labels, n_classes, guidance=3.0, steps=60):
+    def sample_ddim(self, model, labels, n_classes, guidance=3.0, steps=60, capture=0):
         """
         Deterministic sampling over a strided subset of timesteps.
 
@@ -148,6 +148,11 @@ class Diffusion:
         null = torch.full_like(labels, n_classes)
 
         seq = torch.linspace(0, self.T - 1, steps).long().flip(0).tolist()
+        # `capture` frames of the denoising, evenly spaced, for the animation.
+        grab = set()
+        if capture:
+            grab = {int(round(k * (len(seq) - 1) / (capture - 1))) for k in range(capture)}
+        frames = []
 
         for i, t_cur in enumerate(seq):
             t = torch.full((n,), t_cur, device=self.device, dtype=torch.long)
@@ -163,5 +168,12 @@ class Diffusion:
             ac_prev = self.acp[t_prev] if t_prev >= 0 else torch.tensor(1.0, device=self.device)
             x = ac_prev.sqrt() * x0 + (1 - ac_prev).sqrt() * eps
 
+            # Show the model's running guess at the finished drawing, not the
+            # noisy latent -- x0 is what it thinks it is drawing right now.
+            if i in grab:
+                frames.append(x0.clamp(-1, 1).cpu())
+
         model.train()
+        if capture:
+            return x.clamp(-1, 1), frames
         return x.clamp(-1, 1)
