@@ -7,6 +7,7 @@ import { MessageBubble } from './components/MessageBubble';
 import { SettingsModal, ShortcutsModal, KeyModal } from './components/Modals';
 import { MemoryPanel } from './components/MemoryPanel';
 import { Panel, Globe, Brain } from './components/Icons';
+import { parseReply } from './reply';
 
 const SETTINGS_KEY = 'brb.settings.v2';
 
@@ -48,11 +49,16 @@ export default function App() {
   const [showMemory, setShowMemory] = useState(false);
   const [memoryCount, setMemoryCount] = useState(0);
   const [checkins, setCheckins] = useState<CheckInConfig | null>(null);
-  const [nudging, setNudging] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(() => backend.getKey?.() ?? null);
   const [toast, setToast] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
+  const turnRef = useRef<Promise<void> | null>(null);
+  // `send` can run twice before React re-renders (fast typing, or an
+  // interrupt), so the live conversation id is kept in a ref. Reading it from
+  // state risked a stale null and a duplicate conversation.
+  const activeIdRef = useRef<string | null>(null);
+  const creatingRef = useRef<Promise<string> | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -106,6 +112,8 @@ export default function App() {
   useEffect(() => { backend.listMemory().then((m) => setMemoryCount(m.length)).catch(() => {}); }, []);
 
   useEffect(() => { backend.getCheckins().then(setCheckins).catch(() => {}); }, []);
+
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
   useEffect(() => {
     if (!activeId) { setConvo(null); return; }
@@ -165,6 +173,16 @@ export default function App() {
   }, []);
 
   const runTurn = useCallback(
+    (op: 'messages' | 'regenerate' | 'edit', body: Record<string, unknown>, convoId: string, optimistic: Message[]) => {
+      const p = runTurnInner(op, body, convoId, optimistic);
+      turnRef.current = p;
+      return p;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settings, handleEvent, refreshList],
+  );
+
+  const runTurnInner = useCallback(
     async (op: 'messages' | 'regenerate' | 'edit', body: Record<string, unknown>, convoId: string, optimistic: Message[]) => {
       const ac = new AbortController();
       abortRef.current = ac;
@@ -198,15 +216,27 @@ export default function App() {
 
   const send = useCallback(async () => {
     const text = input.trim();
-    if (!text || streaming) return;
+    if (!text) return;
 
-    let id = activeId;
+    // Cutting it off mid-reply is normal in a text conversation, so sending
+    // while it's still talking interrupts rather than being ignored. Wait for
+    // the aborted turn to finish unwinding, or its cleanup clobbers this one.
+    if (streaming) {
+      abortRef.current?.abort();
+      await turnRef.current?.catch(() => {});
+    }
+
+    let id = activeIdRef.current;
     if (!id) {
-      const created = await backend.create();
-      id = created.id;
-      setConvo(created);
-      setActiveId(id);
-      setConvos((cs) => [{ ...created, messageCount: 0, preview: '' }, ...cs]);
+      // Share one in-flight create so two quick sends can't make two chats.
+      creatingRef.current ??= backend.create().then((created) => {
+        activeIdRef.current = created.id;
+        setConvo(created);
+        setActiveId(created.id);
+        setConvos((cs) => [{ ...created, messageCount: 0, preview: '' }, ...cs]);
+        return created.id;
+      }).finally(() => { creatingRef.current = null; });
+      id = await creatingRef.current;
     }
 
     setInput('');
@@ -224,7 +254,7 @@ export default function App() {
         { id: `t-a-${now}`, role: 'assistant', content: '', createdAt: now, pending: true },
       ],
     );
-  }, [input, streaming, activeId, detail, runTurn]);
+  }, [input, streaming, detail, runTurn]);
 
   const regenerate = useCallback(async () => {
     if (!convo || streaming) return;
@@ -255,30 +285,13 @@ export default function App() {
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
-  /** Ask it to text you now. Unlike the scheduled run, this always answers. */
-  const nudge = useCallback(async () => {
-    if (nudging) return;
-    setNudging(true);
-    try {
-      const r = await backend.runCheckin();
-      await refreshList();
-      if (r.conversationId) {
-        setActiveId(r.conversationId);
-        if (isMobile) setSidebarOpen(false);
-      } else {
-        setToast(backend.standalone && !backend.getKey?.() ? 'add an api key first' : 'nothing worth saying rn');
-      }
-    } catch {
-      setToast('couldnt reach it');
-    } finally {
-      setNudging(false);
-    }
-  }, [nudging, refreshList, isMobile]);
+
 
   /* ------------------------- conversation ops ------------------------- */
 
   const newChat = useCallback(() => {
     stop();
+    activeIdRef.current = null;
     setActiveId(null);
     setConvo(null);
     setInput('');
@@ -289,6 +302,7 @@ export default function App() {
 
   const selectChat = useCallback((id: string) => {
     stop();
+    activeIdRef.current = id;
     setActiveId(id);
     if (isMobile) setSidebarOpen(false);
   }, [stop, isMobile]);
@@ -305,7 +319,7 @@ export default function App() {
 
   const deleteChat = async (id: string) => {
     await backend.remove(id);
-    if (id === activeId) { setActiveId(null); setConvo(null); }
+    if (id === activeId) { activeIdRef.current = null; setActiveId(null); setConvo(null); }
     refreshList();
     setToast('chat deleted');
   };
@@ -360,8 +374,6 @@ export default function App() {
         onDelete={deleteChat}
         onOpenSettings={() => setShowSettings(true)}
         onOpenShortcuts={() => setShowShortcuts(true)}
-        onNudge={nudge}
-        nudging={nudging}
         onOpenMemory={() => setShowMemory(true)}
         memoryCount={memoryCount}
         onOpenKey={backend.standalone ? () => setShowKey(true) : undefined}
@@ -408,6 +420,11 @@ export default function App() {
                 <MessageBubble
                   key={m.id}
                   msg={m}
+                  reaction={
+                    m.role === 'user' && messages[i + 1]?.role === 'assistant'
+                      ? parseReply(messages[i + 1].content).reaction
+                      : null
+                  }
                   streaming={streaming && i === messages.length - 1}
                   toolNote={streaming && i === messages.length - 1 ? toolNote : null}
                   isLastAssistant={m.id === lastAssistantId}

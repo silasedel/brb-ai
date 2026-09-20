@@ -35,7 +35,7 @@ export function Composer({ value, onChange, onSend, onStop, streaming, detail, o
   const keyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
-      if (!streaming) onSend();
+      onSend(); // mid-reply this interrupts, like cutting someone off
     }
   };
 
@@ -46,7 +46,7 @@ export function Composer({ value, onChange, onSend, onStop, streaming, detail, o
           ref={inputRef}
           rows={1}
           value={value}
-          placeholder={detail ? 'ask for the full breakdown…' : 'message brb…'}
+          placeholder={streaming ? 'cut it off…' : detail ? 'ask for the full breakdown…' : 'message brb…'}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={keyDown}
         />
@@ -59,10 +59,18 @@ export function Composer({ value, onChange, onSend, onStop, streaming, detail, o
             <Brain />
             <span className="label-hide">detail</span>
           </button>
-          {streaming ? (
+          {streaming && !value.trim() ? (
             <button className="send stop" onClick={onStop} aria-label="Stop generating"><Stop /></button>
           ) : (
-            <button className="send" onClick={onSend} disabled={!value.trim()} aria-label="Send message"><Send /></button>
+            <button
+              className="send"
+              onClick={onSend}
+              disabled={!value.trim()}
+              title={streaming ? 'cut it off and send this' : 'send'}
+              aria-label="Send message"
+            >
+              <Send />
+            </button>
           )}
         </div>
       </div>

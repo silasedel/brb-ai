@@ -518,6 +518,16 @@ export const browserBackend: Backend = {
       Object.assign(placeholder, { aborted: true });
     }
 
+    // Interrupted before it said anything: drop the placeholder rather than
+    // leaving an empty bubble in the thread.
+    if (signal.aborted && !text) {
+      const i = convo.messages.indexOf(placeholder);
+      if (i !== -1) convo.messages.splice(i, 1);
+      save();
+      onEvent({ type: 'saved', messageId: placeholder.id });
+      return;
+    }
+
     Object.assign(placeholder, {
       content: text,
       pending: false,

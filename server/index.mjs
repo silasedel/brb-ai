@@ -84,6 +84,15 @@ async function runTurn({ req, res, convo, history, message, detail, settings }) 
     onEvent: (ev) => stream.send(ev),
   });
 
+  // Interrupted before it said anything: drop the placeholder instead of
+  // leaving an empty bubble sitting in the thread forever.
+  if (result.aborted && !result.text) {
+    store.truncateFrom(convo.id, placeholder.id);
+    stream.send({ type: 'saved', messageId: placeholder.id });
+    stream.end();
+    return;
+  }
+
   store.updateMessage(convo.id, placeholder.id, {
     content: result.text,
     pending: false,

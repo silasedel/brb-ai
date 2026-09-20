@@ -224,7 +224,11 @@ input, textarea { font: inherit; color: inherit; }
   position: relative; word-break: break-word; overflow-wrap: anywhere; max-width: 100%;
 }
 .row.me .bubble { background: var(--me-bg); color: var(--me-fg); border-bottom-right-radius: 5px; }
-.row.them .bubble { background: var(--them-bg); color: var(--ink); border-bottom-left-radius: 5px; }
+.row.them .bubble { background: var(--them-bg); color: var(--ink); }
+/* only the last text in a burst gets the tail, like a real thread */
+.row.them .bubble:last-of-type { border-bottom-left-radius: 5px; }
+.row.them .bubble + .bubble { margin-top: 3px; }
+.bubble { animation: rise 0.22s cubic-bezier(0.32, 0.72, 0, 1) both; }
 .bubble.has-block { width: 100%; padding: 12px 15px; }
 .bubble.errored { background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 32%, transparent); color: var(--ink); }
 
@@ -560,3 +564,32 @@ kbd {
 .foot-btn.accent { color: var(--accent); font-weight: 500; }
 .foot-btn.accent:hover { background: var(--accent-soft); color: var(--accent); }
 .foot-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* ====================== multi-text + tapbacks ====================== */
+/* Assistant bubbles hug their text, but a code block needs the full column. */
+.bubble-wrap.wide-auto { max-width: 76%; }
+.bubble-wrap.wide-auto:has(.has-block) { max-width: 100%; width: 100%; }
+
+.tapback {
+  position: absolute; bottom: -9px; left: -12px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 999px; padding: 1px 5px 2px;
+  font-size: 12px; line-height: 1.2;
+  box-shadow: var(--shadow-sm);
+  animation: tapIn 0.34s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+  animation-delay: 0.1s;
+  z-index: 2;
+}
+@keyframes tapIn {
+  from { opacity: 0; transform: scale(0.3) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.cut-off {
+  font-size: 10.5px; color: var(--ink-3);
+  padding: 3px 6px 0; font-style: italic;
+}
+
+@media (max-width: 820px) {
+  .bubble-wrap.wide-auto { max-width: 88%; }
+}

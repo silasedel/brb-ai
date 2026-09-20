@@ -20,6 +20,19 @@ export const DEMO_CONVERSATIONS = (): Conversation[] => {
   n = 0;
   return [
     {
+      id: 'demo-texting',
+      title: 'rust worth learning',
+      createdAt: t(70), updatedAt: t(66), pinned: false, autoTitled: true,
+      messages: [
+        m('user', 'yo is rust worth learning'),
+        m('assistant', "yea if ur doing cli tools it's genuinely the move\n\nfast binaries, no runtime, clap + ratatui are great\n\nit'll fight u for like 2 weeks tho, borrow checker is rough coming from ts"),
+        m('user', 'i deployed to prod on a friday and took down the whole site lol'),
+        m('assistant', '<r>\u{1F62D}</r>\n\nrip\n\nhow long was it down'),
+        m('user', 'whats 2+2'),
+        m('assistant', '4'),
+      ],
+    },
+    {
       id: 'demo-basics',
       title: 'capital of australia',
       createdAt: t(60), updatedAt: t(52), pinned: false, autoTitled: true,

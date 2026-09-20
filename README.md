@@ -85,6 +85,44 @@ inspect or correct is a liability, so all of it is visible and yours.
 
 ---
 
+## It texts like a person, not a chatbot
+
+Every other assistant answers in one block of prose. This one doesn't.
+
+**It sends several short texts.** A reply arrives as separate bubbles, the way
+someone actually types:
+
+```
+you   yo is rust worth learning
+
+brb   yea if ur doing cli tools it's genuinely the move
+brb   fast binaries, no runtime, clap + ratatui are great
+brb   it'll fight u for like 2 weeks tho, borrow checker is rough coming from ts
+```
+
+Code, lists and tables stay in one piece — only conversational replies get split.
+
+**It reacts.** Sometimes a message deserves a tapback more than a sentence, so
+it drops one on yours, iMessage style:
+
+```
+you   i deployed to prod on a friday and took down the whole site lol
+                                                              😭
+brb   rip
+brb   how long was it down
+```
+
+Roughly one message in ten. A reaction on a boring message is worse than none.
+
+**It matches your energy.** `whats 2+2` gets `4`. One character. Write it a
+paragraph and it gives you substance back.
+
+**You can cut it off.** Start typing while it's still replying and hit enter —
+it stops mid-sentence and deals with what you just said, like interrupting
+someone. No waiting for it to finish a thought you no longer care about.
+
+---
+
 ## It texts you first
 
 Every chatbot waits for you to speak. This one doesn't.
@@ -106,7 +144,6 @@ That's not a canned notification. It knew a React chat app was being built,
 went and found a real release, and picked out the two things in it that matter
 for *that* — scroll-to-bottom is a chat-app problem.
 
-Impatient? **nudge me** in the sidebar makes it go find something right now.
 Don't want it? One switch in settings. It never fires between 11pm and 8am.
 
 ---
@@ -127,6 +164,7 @@ Don't want it? One switch in settings. It never fires between 11pm and 8am.
 - Web search built in — it looks things up when it would otherwise be guessing
 - **Detail mode** (`⌘⇧D`): the escape hatch for when you genuinely want the
   long, thorough version
+- **Multi-text replies, tapback reactions, energy matching, interruptible**
 - **Persistent memory** across every conversation, fully editable
 - **Proactive check-ins** — it starts conversations when it has a reason to
 

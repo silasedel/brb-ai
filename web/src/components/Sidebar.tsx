@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Search, Trash, Pencil, Pin, Sliders, Sun, Moon, Keyboard, Key, Brain, Wave } from './Icons';
+import { Plus, Search, Trash, Pencil, Pin, Sliders, Sun, Moon, Keyboard, Key, Brain } from './Icons';
 import type { ConvoMeta, Settings } from '../types';
 
 interface Props {
@@ -22,8 +22,6 @@ interface Props {
   hasKey?: boolean;
   onOpenMemory: () => void;
   memoryCount: number;
-  onNudge: () => void;
-  nudging: boolean;
 }
 
 const DAY = 86_400_000;
@@ -162,10 +160,6 @@ export function Sidebar(p: Props) {
         <button className="foot-btn" onClick={p.onToggleTheme}>
           {p.settings.theme === 'dark' ? <Moon size={15} /> : <Sun size={15} />}
           {p.settings.theme === 'dark' ? 'dark' : 'light'} mode
-        </button>
-        <button className="foot-btn accent" onClick={p.onNudge} disabled={p.nudging}>
-          <Wave size={15} />
-          {p.nudging ? 'finding something…' : 'nudge me'}
         </button>
         <button className="foot-btn" onClick={p.onOpenMemory}>
           <Brain size={15} /> memory
