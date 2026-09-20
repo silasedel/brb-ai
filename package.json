@@ -1,0 +1,32 @@
+{
+  "name": "brb",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A chat app powered by Claude that texts like a chill teenager.",
+  "scripts": {
+    "build": "vite build",
+    "start": "npm run build && node server/index.mjs",
+    "serve": "node server/index.mjs",
+    "dev:web": "vite",
+    "dev": "node scripts/dev.mjs",
+    "login": "node scripts/login.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.278",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.0.4",
+    "highlight.js": "^11.11.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9"
+  }
+}
