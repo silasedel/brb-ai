@@ -7,12 +7,13 @@
  * because this build has no backend.
  */
 import { PERSONA, DETAIL_MODE } from '../../../server/persona.mjs';
-import type { Conversation, ConvoMeta, Health, Message, StreamEvent } from '../types';
+import type { Conversation, ConvoMeta, Health, MemoryItem, Message, StreamEvent } from '../types';
 import type { Backend } from './types';
-import { DEMO_CONVERSATIONS } from './demo';
+import { DEMO_CONVERSATIONS, DEMO_MEMORY } from './demo';
 
 const KEY_STORE = 'brb.key';
 const CONVO_STORE = 'brb.convos.v1';
+const MEM_STORE = 'brb.memory.v1';
 const API = 'https://api.anthropic.com/v1/messages';
 
 const MODELS = [
@@ -33,6 +34,11 @@ function readAll(): Conversation[] {
   // even before anyone has a key.
   const seeded = DEMO_CONVERSATIONS();
   writeAll(seeded);
+  // Seed the matching memory so the panel demonstrates the feature rather than
+  // showing an empty list next to a chat that obviously used it.
+  try {
+    if (!localStorage.getItem(MEM_STORE)) writeMem(DEMO_MEMORY());
+  } catch { /* storage blocked */ }
   return seeded;
 }
 
@@ -59,6 +65,89 @@ function meta(c: Conversation): ConvoMeta {
     messageCount: c.messages.length,
     preview: [...c.messages].reverse().find((m) => m.role === 'assistant')?.content.slice(0, 160) ?? '',
   };
+}
+
+/* ------------------------------- memory ------------------------------- */
+
+function readMem(): MemoryItem[] {
+  try { return JSON.parse(localStorage.getItem(MEM_STORE) ?? '[]'); } catch { return []; }
+}
+function writeMem(items: MemoryItem[]) {
+  try { localStorage.setItem(MEM_STORE, JSON.stringify(items)); } catch { /* storage blocked */ }
+}
+
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(Boolean);
+
+/** Rough duplicate guard so the list doesn't fill with restatements. */
+function isDuplicate(text: string, items: MemoryItem[]) {
+  const incoming = new Set(norm(text));
+  return items.some((item) => {
+    const existing = new Set(norm(item.text));
+    const overlap = [...incoming].filter((w) => existing.has(w)).length;
+    return overlap / Math.max(incoming.size, existing.size) > 0.7;
+  });
+}
+
+function addMem(text: string, source: 'auto' | 'manual'): MemoryItem | null {
+  const clean = text.trim();
+  if (!clean) return null;
+  const items = readMem();
+  if (isDuplicate(clean, items)) return null;
+  const item: MemoryItem = { id: uuid(), text: clean, createdAt: Date.now(), source };
+  items.push(item);
+  writeMem(items.slice(-80));
+  return item;
+}
+
+function memoryBlock(): string {
+  const items = readMem();
+  if (!items.length) return '';
+  const lines = items.map((i) => `- ${i.text}`).join('\n');
+  return `\n\n# stuff u know abt them
+these carried over from past convos. use them when they're relevant — naturally, like a friend who remembers, not like a database readout. never announce "according to my memory". if one contradicts what they say now, believe what they say now.
+
+${lines}`;
+}
+
+const EXTRACT = `u read one exchange between a user and an assistant, and pull out durable facts about the USER worth remembering for future conversations.
+
+remember: who they are, preferences + tastes, ongoing projects, constraints (allergies, budget, skill level), relationships.
+do NOT remember: what they asked this once, anything the assistant said, world trivia, anything already listed, or sensitive things said in passing.
+
+each fact: one short sentence, third person, starts with "they", self-contained.
+output STRICT json only: {"facts": ["they ...."]}
+nothing worth keeping -> {"facts": []}. that is the common case, be strict.`;
+
+/** Best-effort background learning. Never surfaces an error. */
+async function learn(key: string, userText: string, reply: string) {
+  const items = readMem();
+  const existing = items.length ? `\n\nexisting list (do not repeat):\n${items.map((i) => `- ${i.text}`).join('\n')}` : '';
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 400,
+        system: 'you extract durable user facts and reply with strict json only.',
+        messages: [{ role: 'user', content: `${EXTRACT}${existing}\n\n---\nuser: ${userText}\n\nassistant: ${reply.slice(0, 1500)}\n---` }],
+      }),
+    });
+    if (!res.ok) return;
+    const j = await res.json();
+    const raw = (j.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (!m) return;
+    const facts = JSON.parse(m[0])?.facts;
+    if (Array.isArray(facts)) for (const f of facts.slice(0, 5)) {
+      if (typeof f === 'string' && f.length <= 220) addMem(f, 'auto');
+    }
+  } catch { /* extraction is optional */ }
 }
 
 /* ------------------------------ API calls ------------------------------ */
@@ -107,7 +196,7 @@ function buildBody(opts: {
     model: opts.model,
     max_tokens: 32000,
     stream: opts.stream,
-    system: opts.detail ? `${PERSONA}\n\n# right now\n${DETAIL_MODE}` : PERSONA,
+    system: opts.detail ? `${PERSONA}${memoryBlock()}\n\n# right now\n${DETAIL_MODE}` : `${PERSONA}${memoryBlock()}`,
     messages: opts.messages,
     thinking: { type: 'adaptive' },
     output_config: { effort: opts.effort },
@@ -184,6 +273,24 @@ export const browserBackend: Backend = {
     list.splice(i, 1);
     save();
     return { ok: true };
+  },
+
+  async listMemory() {
+    return readMem().sort((a, b) => b.createdAt - a.createdAt);
+  },
+  async addMemory(text) {
+    return addMem(text, 'manual');
+  },
+  async updateMemory(id, text) {
+    const items = readMem();
+    const it = items.find((i) => i.id === id);
+    if (it) { it.text = text.trim(); writeMem(items); }
+  },
+  async removeMemory(id) {
+    writeMem(readMem().filter((i) => i.id !== id));
+  },
+  async clearMemory() {
+    writeMem([]);
   },
 
   async stream(convoId, op, body, signal, onEvent) {
@@ -325,6 +432,8 @@ export const browserBackend: Backend = {
     });
     convo.updatedAt = Date.now();
     save();
+
+    if (text) learn(key, prompt, text);
 
     if (!convo.autoTitled && text) {
       titleFor(key, prompt, text).then((t) => {

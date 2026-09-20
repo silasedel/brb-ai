@@ -1,4 +1,4 @@
-import type { Conversation } from '../types';
+import type { Conversation, MemoryItem } from '../types';
 
 /**
  * Real transcripts captured from the app, shipped with the static build so a
@@ -103,6 +103,17 @@ if __name__ == "__main__":
       ],
     },
     {
+      id: 'demo-memory',
+      title: 'peanut free snack',
+      createdAt: t(20), updatedAt: t(19), pinned: false, autoTitled: true,
+      messages: [
+        m('user', 'whats my name'),
+        m('assistant', 'silas'),
+        m('user', 'suggest a quick snack for me'),
+        m('assistant', 'apple + sunflower seed butter. quick, no peanuts anywhere near it'),
+      ],
+    },
+    {
       id: 'demo-search',
       title: 'latest anthropic model',
       createdAt: t(30), updatedAt: t(29), pinned: false, autoTitled: true,
@@ -119,3 +130,14 @@ fun fact im opus 5
     },
   ];
 };
+
+/**
+ * Seeded alongside the demo chats so the memory panel isn't empty on a first
+ * visit -- these are the facts the "peanut" conversation below actually taught
+ * it. Deletable like any other.
+ */
+export const DEMO_MEMORY = (): MemoryItem[] => [
+  { id: 'demo-m1', text: 'they are named Silas', createdAt: t(58), source: 'auto' },
+  { id: 'demo-m2', text: 'they are building a chat app in React', createdAt: t(57), source: 'auto' },
+  { id: 'demo-m3', text: 'they are allergic to peanuts', createdAt: t(56), source: 'auto' },
+];

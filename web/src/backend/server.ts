@@ -1,4 +1,4 @@
-import type { Conversation, ConvoMeta, Health, StreamEvent } from '../types';
+import type { Conversation, ConvoMeta, Health, MemoryItem, StreamEvent } from '../types';
 import type { Backend } from './types';
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
@@ -21,6 +21,16 @@ export const serverBackend: Backend = {
   patch: (id, fields) =>
     json<{ ok: boolean }>(`/api/conversations/${id}`, { method: 'PATCH', body: JSON.stringify(fields) }),
   remove: (id) => json<{ ok: boolean }>(`/api/conversations/${id}`, { method: 'DELETE' }),
+
+  listMemory: () => json<MemoryItem[]>('/api/memory'),
+  addMemory: (text) =>
+    fetch('/api/memory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })
+      .then((r) => (r.ok ? r.json() : null)),
+  updateMemory: async (id, text) => {
+    await fetch(`/api/memory/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+  },
+  removeMemory: async (id) => { await fetch(`/api/memory/${id}`, { method: 'DELETE' }); },
+  clearMemory: async () => { await fetch('/api/memory', { method: 'DELETE' }); },
 
   /**
    * The response is newline-delimited JSON, so a plain fetch reader is enough --

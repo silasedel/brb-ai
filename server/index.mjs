@@ -3,15 +3,23 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Store } from './store.mjs';
-import { streamReply, generateTitle, checkAuth, MODELS, EFFORTS, DEFAULTS } from './agent.mjs';
+import { streamReply, generateTitle, checkAuth, childEnv, MODELS, EFFORTS, DEFAULTS } from './agent.mjs';
+import { Memory } from './memory.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const DIST = path.join(ROOT, 'web', 'dist');
 const PORT = Number(process.env.PORT) || 4317;
 
-const store = new Store(path.join(ROOT, 'data', 'conversations'));
+// DATA_DIR lets a second instance keep its own history -- used when sharing a
+// public tunnel, so visitors never see or delete your personal conversations.
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(ROOT, process.env.DATA_DIR)
+  : path.join(ROOT, 'data', 'conversations');
+const store = new Store(DATA_DIR);
 const loaded = await store.init();
+const memory = new Memory(DATA_DIR);
+const remembered = await memory.init();
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -68,6 +76,7 @@ async function runTurn({ req, res, convo, history, message, detail, settings }) 
     message,
     detail,
     ...settings,
+    memoryBlock: memory.promptBlock(),
     signal: ac.signal,
     onEvent: (ev) => stream.send(ev),
   });
@@ -90,6 +99,13 @@ async function runTurn({ req, res, convo, history, message, detail, settings }) 
         if (title) store.patch(convo.id, { title, autoTitled: true });
       });
     }
+  }
+
+  // Learn in the background: it must never delay the reply the user is reading.
+  if (result.text && !result.error) {
+    memory.learn(message, result.text, childEnv()).then((added) => {
+      if (added.length) console.log(`[memory] +${added.length}`);
+    });
   }
 
   stream.send({ type: 'saved', messageId: placeholder.id });
@@ -195,6 +211,29 @@ app.post('/api/conversations/:id/edit', async (req, res) => {
   });
 });
 
+/* ------------------------------ memory ------------------------------ */
+
+app.get('/api/memory', (_req, res) => res.json(memory.list()));
+
+app.post('/api/memory', (req, res) => {
+  const item = memory.add(String(req.body?.text ?? ''), 'manual');
+  res.status(item ? 200 : 409).json(item ?? { error: 'empty or already known' });
+});
+
+app.patch('/api/memory/:id', (req, res) => {
+  const item = memory.update(req.params.id, String(req.body?.text ?? ''));
+  res.status(item ? 200 : 404).json(item ?? { error: 'not found' });
+});
+
+app.delete('/api/memory/:id', (req, res) => {
+  res.status(memory.remove(req.params.id) ? 200 : 404).json({ ok: true });
+});
+
+app.delete('/api/memory', (_req, res) => {
+  memory.clear();
+  res.json({ ok: true });
+});
+
 /* ----------------------------- static app ----------------------------- */
 
 if (fs.existsSync(DIST)) {
@@ -207,7 +246,7 @@ if (fs.existsSync(DIST)) {
 
 const server = app.listen(PORT, async () => {
   console.log(`\n  brb  ->  http://localhost:${PORT}`);
-  console.log(`  ${loaded} conversation${loaded === 1 ? '' : 's'} loaded`);
+  console.log(`  ${loaded} conversation${loaded === 1 ? '' : 's'}, ${remembered} thing${remembered === 1 ? '' : 's'} remembered`);
   const auth = await checkAuth();
   console.log(auth.ok
     ? `  signed in (${auth.method})\n`
@@ -217,6 +256,7 @@ const server = app.listen(PORT, async () => {
 async function shutdown() {
   server.close();
   await store.flushAll();
+  await memory.flush();
   process.exit(0);
 }
 process.on('SIGINT', shutdown);

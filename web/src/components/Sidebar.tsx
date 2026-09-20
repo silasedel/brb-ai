@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Search, Trash, Pencil, Pin, Sliders, Sun, Moon, Keyboard, Key } from './Icons';
+import { Plus, Search, Trash, Pencil, Pin, Sliders, Sun, Moon, Keyboard, Key, Brain } from './Icons';
 import type { ConvoMeta, Settings } from '../types';
 
 interface Props {
@@ -20,6 +20,8 @@ interface Props {
   onToggleTheme: () => void;
   onOpenKey?: () => void;
   hasKey?: boolean;
+  onOpenMemory: () => void;
+  memoryCount: number;
 }
 
 const DAY = 86_400_000;
@@ -66,9 +68,8 @@ export function Sidebar(p: Props) {
     <aside className={`sidebar${p.open ? '' : ' collapsed'}`}>
       <div className="sidebar-head">
         <div className="brand">
-          <span className="brand-mark">b</span>
-          brb
-          <span className="brand-sub">claude, but chill</span>
+          <span className="brand-mark">brb</span>
+          <span className="brand-sub">chill genius</span>
         </div>
         <button className="new-chat" onClick={p.onNew}><Plus size={15} /> new chat</button>
         <div className="search-wrap">
@@ -158,6 +159,10 @@ export function Sidebar(p: Props) {
         <button className="foot-btn" onClick={p.onToggleTheme}>
           {p.settings.theme === 'dark' ? <Moon size={15} /> : <Sun size={15} />}
           {p.settings.theme === 'dark' ? 'dark' : 'light'} mode
+        </button>
+        <button className="foot-btn" onClick={p.onOpenMemory}>
+          <Brain size={15} /> memory
+          {p.memoryCount ? <span className="count">{p.memoryCount}</span> : <span className="spacer">empty</span>}
         </button>
         {p.onOpenKey && (
           <button className="foot-btn" onClick={p.onOpenKey}>

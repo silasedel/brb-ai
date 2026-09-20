@@ -58,6 +58,33 @@ Open **http://localhost:4317**.
 
 ---
 
+## It remembers you
+
+The thing that makes it feel less like a demo and more like an assistant.
+
+As you talk, a cheap background model pulls out durable facts about you — your
+name, what you're building, that you're allergic to peanuts — and carries them
+into **every future conversation**. Not the chat history; the facts.
+
+```
+chat 1   you: im silas, building a chat app in react. allergic to peanuts btw
+         brb: hey silas. noted on the peanuts
+
+chat 2   you: whats my name
+   (new) brb: silas
+
+         you: suggest a quick snack for me
+         brb: apple + sunflower seed butter. quick, no peanuts anywhere near it
+```
+
+Nobody asked it to avoid peanuts in that last one.
+
+Click **memory** in the sidebar to see everything it knows, edit any of it, add
+your own ("they prefer typescript"), or delete the lot. Memory you can't
+inspect or correct is a liability, so all of it is visible and yours.
+
+---
+
 ## What's in it
 
 **Chat**
@@ -72,11 +99,12 @@ Open **http://localhost:4317**.
 **The AI**
 - Claude Opus 5 with adaptive thinking
 - Web search built in — it looks things up when it would otherwise be guessing
-- **Detail mode** (the 🧠 button, or `⌘⇧D`): the escape hatch for when you
-  genuinely want the long, thorough version
+- **Detail mode** (`⌘⇧D`): the escape hatch for when you genuinely want the
+  long, thorough version
+- **Persistent memory** across every conversation, fully editable
 
 **The app**
-- Dark and light themes
+- Warm paper-and-ink design, light and dark
 - Works on a phone browser
 - Keyboard-driven: `⌘K` new chat, `⌘/` search, `⌘B` sidebar, `esc` stop, `?` for the rest
 
@@ -101,8 +129,9 @@ more often, at the cost of more of your usage quota. `high` is the sweet spot;
 
 ## Where your data lives
 
-`data/conversations/` — one JSON file per chat, on your machine, nowhere else.
-Back it up by copying the folder. Delete a file to delete a chat.
+`data/conversations/` — one JSON file per chat, plus `memory.json`, on your
+machine and nowhere else. Back it up by copying the folder. Delete a file to
+delete a chat. The browser version keeps the equivalent in localStorage.
 
 Nothing is sent anywhere except your messages going to Anthropic to be answered.
 
@@ -115,9 +144,13 @@ server/
   index.mjs     HTTP + NDJSON streaming
   agent.mjs     Claude Agent SDK wrapper, auth probe
   persona.mjs   the personality
+  memory.mjs    fact extraction + recall
   store.mjs     JSON persistence
-web/src/        React UI
-data/           your conversations
+web/src/
+  backend/      one interface, two implementations (local server / browser)
+  components/   the UI
+data/           your conversations and memory
+docs/           the built static site (GitHub Pages)
 ```
 
 `npm run dev` runs the API and Vite with hot reload (UI on :5317).

@@ -61,3 +61,10 @@ export type StreamEvent =
   | { type: 'done'; text: string; usedSearch: boolean; aborted?: boolean; meta?: Message['meta'] }
   | { type: 'error'; kind: string; message: string }
   | { type: 'saved'; messageId: string };
+
+export interface MemoryItem {
+  id: string;
+  text: string;
+  createdAt: number;
+  source: 'auto' | 'manual';
+}

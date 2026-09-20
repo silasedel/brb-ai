@@ -1,4 +1,4 @@
-import type { Conversation, ConvoMeta, Health, StreamEvent } from '../types';
+import type { Conversation, ConvoMeta, Health, MemoryItem, StreamEvent } from '../types';
 
 /**
  * Everything the UI needs from a data source. Two implementations:
@@ -23,6 +23,13 @@ export interface Backend {
     signal: AbortSignal,
     onEvent: (e: StreamEvent) => void,
   ): Promise<void>;
+  /** What it remembers about the person, across all conversations. */
+  listMemory(): Promise<MemoryItem[]>;
+  addMemory(text: string): Promise<MemoryItem | null>;
+  updateMemory(id: string, text: string): Promise<void>;
+  removeMemory(id: string): Promise<void>;
+  clearMemory(): Promise<void>;
+
   /** Standalone only: the visitor's own API key. */
   getKey?(): string | null;
   setKey?(k: string | null): void;

@@ -69,7 +69,7 @@ const HISTORY_BUDGET_CHARS = 600_000;
  * are not that host. Strip them so a spawn from inside Claude Code behaves the
  * same as one from a plain terminal.
  */
-function childEnv() {
+export function childEnv() {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (k === 'CLAUDECODE') continue;
@@ -162,11 +162,10 @@ function abortControllerFrom(signal) {
  * Streams one assistant reply.
  * `onEvent` receives {type:'delta'|'tool'|'thinking'|'done'|'error', ...}.
  */
-export async function streamReply({ history, message, detail, model, effort, webSearch, signal, onEvent }) {
+export async function streamReply({ history, message, detail, model, effort, webSearch, memoryBlock = '', signal, onEvent }) {
   const opts = baseOptions({ model, effort, webSearch, signal });
-  if (detail) {
-    opts.systemPrompt = { type: 'custom', prompt: `${PERSONA}\n\n# right now\n${DETAIL_MODE}` };
-  }
+  const base = `${PERSONA}${memoryBlock}`;
+  opts.systemPrompt = { type: 'custom', prompt: detail ? `${base}\n\n# right now\n${DETAIL_MODE}` : base };
 
   let text = '';
   let usedSearch = false;

@@ -5,11 +5,12 @@ import { Sidebar } from './components/Sidebar';
 import { Composer } from './components/Composer';
 import { MessageBubble } from './components/MessageBubble';
 import { SettingsModal, ShortcutsModal, KeyModal } from './components/Modals';
+import { MemoryPanel } from './components/MemoryPanel';
 import { Panel, Globe, Brain } from './components/Icons';
 
-const SETTINGS_KEY = 'brb.settings.v1';
+const SETTINGS_KEY = 'brb.settings.v2';
 
-const DEFAULT_SETTINGS: Settings = { model: 'claude-opus-5', effort: 'high', webSearch: true, theme: 'dark' };
+const DEFAULT_SETTINGS: Settings = { model: 'claude-opus-5', effort: 'high', webSearch: true, theme: 'light' };
 
 function loadSettings(): Settings {
   try {
@@ -44,6 +45,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showKey, setShowKey] = useState(false);
+  const [showMemory, setShowMemory] = useState(false);
+  const [memoryCount, setMemoryCount] = useState(0);
   const [apiKey, setApiKey] = useState<string | null>(() => backend.getKey?.() ?? null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -97,6 +100,8 @@ export default function App() {
   );
 
   useEffect(() => { refreshList(); }, [refreshList]);
+
+  useEffect(() => { backend.listMemory().then((m) => setMemoryCount(m.length)).catch(() => {}); }, []);
 
   useEffect(() => {
     if (!activeId) { setConvo(null); return; }
@@ -181,6 +186,7 @@ export default function App() {
           setConvo((c) => (c && c.id === convoId ? fresh : c));
         } catch { /* conversation was deleted mid-stream */ }
         refreshList();
+        setTimeout(() => backend.listMemory().then((m) => setMemoryCount(m.length)).catch(() => {}), 9000);
       }
     },
     [settings, handleEvent, refreshList],
@@ -330,6 +336,8 @@ export default function App() {
         onDelete={deleteChat}
         onOpenSettings={() => setShowSettings(true)}
         onOpenShortcuts={() => setShowShortcuts(true)}
+        onOpenMemory={() => setShowMemory(true)}
+        memoryCount={memoryCount}
         onOpenKey={backend.standalone ? () => setShowKey(true) : undefined}
         hasKey={!!apiKey}
         open={sidebarOpen}
@@ -358,9 +366,8 @@ export default function App() {
         <div className="scroll" ref={scrollRef} onScroll={onScroll}>
           {messages.length === 0 ? (
             <div className="empty">
-              <div className="empty-mark">b</div>
               <h1>wassup</h1>
-              <p>ask me anything. i keep it short unless u tell me not to.</p>
+              <p>ask me anything. i keep it short unless u tell me not to — and i remember what you tell me.</p>
               <div className="chips">
                 {SUGGESTIONS.map((s) => (
                   <button key={s} className="chip" onClick={() => { setInput(s); inputRef.current?.focus(); }}>
@@ -434,6 +441,7 @@ export default function App() {
         />
       )}
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      {showMemory && <MemoryPanel onClose={() => setShowMemory(false)} onChanged={setMemoryCount} />}
       {showKey && (
         <KeyModal
           initial={apiKey}
