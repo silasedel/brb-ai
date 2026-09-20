@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, streamTurn } from './api';
+import { backend } from './backend';
 import type { Conversation, ConvoMeta, Health, Message, Settings, StreamEvent } from './types';
 import { Sidebar } from './components/Sidebar';
 import { Composer } from './components/Composer';
 import { MessageBubble } from './components/MessageBubble';
-import { SettingsModal, ShortcutsModal } from './components/Modals';
+import { SettingsModal, ShortcutsModal, KeyModal } from './components/Modals';
 import { Panel, Globe, Brain } from './components/Icons';
 
 const SETTINGS_KEY = 'brb.settings.v1';
@@ -43,6 +43,8 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 820);
   const [showSettings, setShowSettings] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showKey, setShowKey] = useState(false);
+  const [apiKey, setApiKey] = useState<string | null>(() => backend.getKey?.() ?? null);
   const [toast, setToast] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -73,7 +75,7 @@ export default function App() {
   }, [settings]);
 
   useEffect(() => {
-    api.health()
+    backend.health()
       .then((h) => { setHealth(h); setSettings((s) => ({ ...s, model: s.model || h.defaults.model })); })
       .catch(() => setToast('cant reach the server'));
   }, []);
@@ -81,7 +83,7 @@ export default function App() {
   const recheckAuth = useCallback(async () => {
     setRechecking(true);
     try {
-      const h = await api.health();
+      const h = await backend.health();
       setHealth(h);
       if (h.auth.ok) setAuthError(false);
     } catch { /* banner just stays up */ } finally {
@@ -90,7 +92,7 @@ export default function App() {
   }, []);
 
   const refreshList = useCallback(
-    (q = query) => api.list(q).then(setConvos).catch(() => {}),
+    (q = query) => backend.list(q).then(setConvos).catch(() => {}),
     [query],
   );
 
@@ -99,7 +101,7 @@ export default function App() {
   useEffect(() => {
     if (!activeId) { setConvo(null); return; }
     let cancelled = false;
-    api.get(activeId).then((c) => { if (!cancelled) setConvo(c); }).catch(() => setActiveId(null));
+    backend.get(activeId).then((c) => { if (!cancelled) setConvo(c); }).catch(() => setActiveId(null));
     return () => { cancelled = true; };
   }, [activeId]);
 
@@ -154,7 +156,7 @@ export default function App() {
   }, []);
 
   const runTurn = useCallback(
-    async (path: string, body: Record<string, unknown>, convoId: string, optimistic: Message[]) => {
+    async (op: 'messages' | 'regenerate' | 'edit', body: Record<string, unknown>, convoId: string, optimistic: Message[]) => {
       const ac = new AbortController();
       abortRef.current = ac;
       setStreaming(true);
@@ -164,7 +166,7 @@ export default function App() {
       setConvo((c) => (c && c.id === convoId ? { ...c, messages: [...c.messages, ...optimistic] } : c));
 
       try {
-        await streamTurn(path, { ...body, ...settings }, ac.signal, (e) => handleEvent(e, convoId));
+        await backend.stream(convoId, op, { ...body, ...settings }, ac.signal, (e) => handleEvent(e, convoId));
       } catch (err) {
         if (!ac.signal.aborted) {
           handleEvent({ type: 'error', kind: 'network', message: 'lost connection to the server' }, convoId);
@@ -175,7 +177,7 @@ export default function App() {
         abortRef.current = null;
         // Re-read the canonical record so ids, metadata and the auto-title land.
         try {
-          const fresh = await api.get(convoId);
+          const fresh = await backend.get(convoId);
           setConvo((c) => (c && c.id === convoId ? fresh : c));
         } catch { /* conversation was deleted mid-stream */ }
         refreshList();
@@ -190,7 +192,7 @@ export default function App() {
 
     let id = activeId;
     if (!id) {
-      const created = await api.create();
+      const created = await backend.create();
       id = created.id;
       setConvo(created);
       setActiveId(id);
@@ -204,7 +206,7 @@ export default function App() {
 
     const now = Date.now();
     await runTurn(
-      `/api/conversations/${id}/messages`,
+      'messages',
       { content: text, detail: wasDetail },
       id,
       [
@@ -220,7 +222,7 @@ export default function App() {
     if (msgs[msgs.length - 1]?.role === 'assistant') msgs.pop();
     setConvo({ ...convo, messages: msgs });
     setAuthError(false);
-    await runTurn(`/api/conversations/${convo.id}/regenerate`, {}, convo.id, [
+    await runTurn('regenerate', {}, convo.id, [
       { id: `t-a-${Date.now()}`, role: 'assistant', content: '', createdAt: Date.now(), pending: true },
     ]);
   }, [convo, streaming, runTurn]);
@@ -233,7 +235,7 @@ export default function App() {
       setConvo({ ...convo, messages: convo.messages.slice(0, idx) });
       setAuthError(false);
       const now = Date.now();
-      await runTurn(`/api/conversations/${convo.id}/edit`, { messageId, content }, convo.id, [
+      await runTurn('edit', { messageId, content }, convo.id, [
         { id: `t-u-${now}`, role: 'user', content, createdAt: now },
         { id: `t-a-${now}`, role: 'assistant', content: '', createdAt: now, pending: true },
       ]);
@@ -263,16 +265,16 @@ export default function App() {
 
   const renameChat = (id: string, title: string) => {
     setConvos((cs) => cs.map((c) => (c.id === id ? { ...c, title } : c)));
-    api.patch(id, { title, autoTitled: true }).then(() => refreshList());
+    backend.patch(id, { title, autoTitled: true }).then(() => refreshList());
   };
 
   const pinChat = (id: string, pinned: boolean) => {
     setConvos((cs) => cs.map((c) => (c.id === id ? { ...c, pinned } : c)));
-    api.patch(id, { pinned }).then(() => refreshList());
+    backend.patch(id, { pinned }).then(() => refreshList());
   };
 
   const deleteChat = async (id: string) => {
-    await api.remove(id);
+    await backend.remove(id);
     if (id === activeId) { setActiveId(null); setConvo(null); }
     refreshList();
     setToast('chat deleted');
@@ -320,7 +322,7 @@ export default function App() {
         query={query}
         settings={settings}
         searchRef={searchRef}
-        onQuery={(q) => { setQuery(q); api.list(q).then(setConvos).catch(() => {}); }}
+        onQuery={(q) => { setQuery(q); backend.list(q).then(setConvos).catch(() => {}); }}
         onSelect={selectChat}
         onNew={newChat}
         onRename={renameChat}
@@ -328,6 +330,8 @@ export default function App() {
         onDelete={deleteChat}
         onOpenSettings={() => setShowSettings(true)}
         onOpenShortcuts={() => setShowShortcuts(true)}
+        onOpenKey={backend.standalone ? () => setShowKey(true) : undefined}
+        hasKey={!!apiKey}
         open={sidebarOpen}
         onToggleTheme={() => setSettings((s) => ({ ...s, theme: s.theme === 'dark' ? 'light' : 'dark' }))}
       />
@@ -385,12 +389,26 @@ export default function App() {
         {needsSetup && (
           <div style={{ padding: '0 20px' }}>
             <div className="setup">
-              <div className="t">one-time setup</div>
-              <div className="b">brb runs on your own claude account — no api key needed. run this once, in a terminal:</div>
-              <div className="setup-cmd"><code>npm run login</code></div>
-              <button className="btn" onClick={recheckAuth} disabled={rechecking}>
-                {rechecking ? 'checking…' : 'check again'}
-              </button>
+              <div className="t">{backend.standalone ? 'try it urself' : 'one-time setup'}</div>
+              {backend.standalone ? (
+                <>
+                  <div className="b">
+                    these are real saved chats — scroll em. to talk to it urself, add an anthropic
+                    api key. free to make, and it never leaves this browser.
+                  </div>
+                  <button className="btn primary" style={{ marginTop: 10 }} onClick={() => setShowKey(true)}>
+                    add api key
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="b">brb runs on your own claude account — no api key needed. run this once, in a terminal:</div>
+                  <div className="setup-cmd"><code>npm run login</code></div>
+                  <button className="btn" onClick={recheckAuth} disabled={rechecking}>
+                    {rechecking ? 'checking…' : 'check again'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -416,6 +434,18 @@ export default function App() {
         />
       )}
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      {showKey && (
+        <KeyModal
+          initial={apiKey}
+          onSave={(k) => {
+            backend.setKey?.(k);
+            setApiKey(k);
+            setAuthError(false);
+            recheckAuth();
+          }}
+          onClose={() => setShowKey(false)}
+        />
+      )}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

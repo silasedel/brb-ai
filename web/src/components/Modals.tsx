@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Health, Settings } from '../types';
 
 const EFFORT_HINT: Record<string, string> = {
@@ -91,6 +92,62 @@ export function ShortcutsModal({ onClose }: { onClose: () => void }) {
           ))}
         </div>
         <div className="modal-foot"><button className="btn primary" onClick={onClose}>got it</button></div>
+      </div>
+    </div>
+  );
+}
+
+export function KeyModal({
+  initial, onSave, onClose,
+}: {
+  initial: string | null;
+  onSave: (k: string | null) => void;
+  onClose: () => void;
+}) {
+  const [val, setVal] = useState(initial ?? '');
+  const ok = val.trim().startsWith('sk-ant-');
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>add ur api key</h2>
+        <p className="sub">one time. then it just works.</p>
+
+        <div className="field">
+          <input
+            className="key-input"
+            type="password"
+            autoFocus
+            spellCheck={false}
+            placeholder="sk-ant-..."
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && ok) { onSave(val.trim()); onClose(); } }}
+          />
+          <div className="field-note">
+            grab one free at{' '}
+            <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer noopener">
+              console.anthropic.com
+            </a>
+            . new accounts get trial credit, so this costs nothing to try.
+          </div>
+        </div>
+
+        <div className="key-privacy">
+          <strong>where ur key goes:</strong> nowhere. this site is a static page with no
+          backend — the key stays in this browser and is sent straight to anthropic from ur
+          own machine. nobody else can see it, including whoever made this.
+        </div>
+
+        <div className="modal-foot">
+          {initial && (
+            <button className="btn danger" onClick={() => { onSave(null); onClose(); }}>remove</button>
+          )}
+          <button className="btn" onClick={onClose}>cancel</button>
+          <button className="btn primary" disabled={!ok} onClick={() => { onSave(val.trim()); onClose(); }}>
+            save
+          </button>
+        </div>
       </div>
     </div>
   );

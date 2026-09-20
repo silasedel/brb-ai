@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Search, Trash, Pencil, Pin, Sliders, Sun, Moon, Keyboard } from './Icons';
+import { Plus, Search, Trash, Pencil, Pin, Sliders, Sun, Moon, Keyboard, Key } from './Icons';
 import type { ConvoMeta, Settings } from '../types';
 
 interface Props {
@@ -18,6 +18,8 @@ interface Props {
   onOpenSettings: () => void;
   onOpenShortcuts: () => void;
   onToggleTheme: () => void;
+  onOpenKey?: () => void;
+  hasKey?: boolean;
 }
 
 const DAY = 86_400_000;
@@ -157,6 +159,12 @@ export function Sidebar(p: Props) {
           {p.settings.theme === 'dark' ? <Moon size={15} /> : <Sun size={15} />}
           {p.settings.theme === 'dark' ? 'dark' : 'light'} mode
         </button>
+        {p.onOpenKey && (
+          <button className="foot-btn" onClick={p.onOpenKey}>
+            <Key size={15} /> api key
+            <span className="spacer">{p.hasKey ? 'saved' : 'not set'}</span>
+          </button>
+        )}
         <button className="foot-btn" onClick={p.onOpenShortcuts}>
           <Keyboard size={15} /> shortcuts <span className="spacer">?</span>
         </button>

@@ -5,9 +5,30 @@ A ChatGPT-style chat app powered by **Claude Opus 5** that texts back like a chi
 Full reasoning under the hood, two-line answers on the surface. It only writes an essay
 if you actually ask for one.
 
+### → [Try it in your browser](https://silasedel.github.io/brb-ai/)
+
+No install. It opens with real saved conversations so you can see what it does straight
+away. To chat with it yourself you add your own Anthropic API key — it's stored in your
+browser and sent only to Anthropic, because that page is static and has no backend to
+send it anywhere else.
+
 ---
 
-## Setup
+## Two ways to run it
+
+| | Browser version | Local version |
+|---|---|---|
+| Install | none | `npm install` |
+| Sign-in | your own API key | your existing Claude login, no key |
+| History | stored in your browser | JSON files on your disk |
+| Cost | your API usage | your Claude subscription |
+
+The local version is the nicer one if you already use Claude Code — no key, and it runs
+on your subscription.
+
+---
+
+## Setup (local version)
 
 Two commands, once:
 

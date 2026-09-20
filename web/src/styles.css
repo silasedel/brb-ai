@@ -578,3 +578,19 @@ kbd {
   .composer-hint { display: none; }
   .topbar-right .label-hide { display: none; }
 }
+
+/* ============================ api key modal ============================ */
+.key-input {
+  width: 100%; padding: 10px 13px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 10px; outline: none;
+  font-family: var(--mono); font-size: 13px; letter-spacing: 0.02em;
+}
+.key-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.key-privacy {
+  font-size: 12px; line-height: 1.5; color: var(--text-dim);
+  background: var(--surface-2); border: 1px solid var(--border-soft);
+  border-radius: 10px; padding: 11px 13px;
+}
+.key-privacy strong { color: var(--text); font-weight: 600; }
+.setup .b a, .field-note a, .key-privacy a { color: var(--accent-2); }

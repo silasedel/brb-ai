@@ -24,3 +24,4 @@ export const Panel = ({ size }: P) => <svg {...s(size)}><rect x="3" y="4" width=
 export const Brain = ({ size = 14 }: P) => <svg {...s(size)}><path d="M9.5 3a2.8 2.8 0 0 0-2.8 2.8A2.7 2.7 0 0 0 4.5 8.4a2.8 2.8 0 0 0 .8 2 2.8 2.8 0 0 0 .5 3.9A2.8 2.8 0 0 0 9 18.4a2.6 2.6 0 0 0 3.2.4V3.9A2.7 2.7 0 0 0 9.5 3Z" /><path d="M14.5 3a2.8 2.8 0 0 1 2.8 2.8 2.7 2.7 0 0 1 2.2 2.6 2.8 2.8 0 0 1-.8 2 2.8 2.8 0 0 1-.5 3.9 2.8 2.8 0 0 1-3.2 4.1" /></svg>;
 export const Keyboard = ({ size }: P) => <svg {...s(size)}><rect x="2" y="6" width="20" height="12" rx="2.2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8" /></svg>;
 export const X = ({ size }: P) => <svg {...s(size)}><path d="M18 6 6 18M6 6l12 12" /></svg>;
+export const Key = ({ size }: P) => <svg {...s(size)}><circle cx="7.5" cy="15.5" r="4" /><path d="m10.5 12.5 8-8M16 7l2.5 2.5M13.5 9.5 16 12" /></svg>;
