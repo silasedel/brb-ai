@@ -111,6 +111,9 @@ if __name__ == "__main__":
         m('assistant', 'silas'),
         m('user', 'suggest a quick snack for me'),
         m('assistant', 'apple + sunflower seed butter. quick, no peanuts anywhere near it'),
+        m('assistant', `react 19.3 dropped sept 9 — view transitions are stable now, which is basically free animations for ur chat msg list entering/leaving https://react.dev/versions
+
+also fragment refs landed, handy for scroll-to-bottom without wrapper divs`, { checkin: true, usedSearch: true }),
       ],
     },
     {

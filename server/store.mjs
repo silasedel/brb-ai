@@ -45,6 +45,7 @@ export class Store {
         createdAt: c.createdAt,
         updatedAt: c.updatedAt,
         pinned: !!c.pinned,
+        unread: !!c.unread,
         messageCount: c.messages.length,
         preview: c.messages.findLast?.((m) => m.role === 'assistant')?.content?.slice(0, 160) ?? '',
       }))
@@ -99,7 +100,7 @@ export class Store {
   patch(id, fields) {
     const c = this.#convos.get(id);
     if (!c) return null;
-    const allowed = ['title', 'pinned', 'autoTitled'];
+    const allowed = ['title', 'pinned', 'autoTitled', 'unread'];
     for (const k of allowed) if (k in fields) c[k] = fields[k];
     c.updatedAt = Date.now();
     this.#save(id);

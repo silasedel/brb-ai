@@ -1,4 +1,4 @@
-import type { Conversation, ConvoMeta, Health, MemoryItem, StreamEvent } from '../types';
+import type { CheckInConfig, CheckInResult, Conversation, ConvoMeta, Health, MemoryItem, StreamEvent } from '../types';
 import type { Backend } from './types';
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
@@ -31,6 +31,11 @@ export const serverBackend: Backend = {
   },
   removeMemory: async (id) => { await fetch(`/api/memory/${id}`, { method: 'DELETE' }); },
   clearMemory: async () => { await fetch('/api/memory', { method: 'DELETE' }); },
+
+  getCheckins: () => json<CheckInConfig>('/api/checkins'),
+  setCheckins: (patch) =>
+    json<CheckInConfig>('/api/checkins', { method: 'PATCH', body: JSON.stringify(patch) }),
+  runCheckin: () => json<CheckInResult>('/api/checkins/run', { method: 'POST', body: '{}' }),
 
   /**
    * The response is newline-delimited JSON, so a plain fetch reader is enough --

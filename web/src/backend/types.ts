@@ -1,4 +1,4 @@
-import type { Conversation, ConvoMeta, Health, MemoryItem, StreamEvent } from '../types';
+import type { CheckInConfig, CheckInResult, Conversation, ConvoMeta, Health, MemoryItem, StreamEvent } from '../types';
 
 /**
  * Everything the UI needs from a data source. Two implementations:
@@ -29,6 +29,11 @@ export interface Backend {
   updateMemory(id: string, text: string): Promise<void>;
   removeMemory(id: string): Promise<void>;
   clearMemory(): Promise<void>;
+
+  /** Proactive check-ins: the assistant messaging you first. */
+  getCheckins(): Promise<CheckInConfig>;
+  setCheckins(patch: Partial<CheckInConfig>): Promise<CheckInConfig>;
+  runCheckin(): Promise<CheckInResult>;
 
   /** Standalone only: the visitor's own API key. */
   getKey?(): string | null;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Search, Trash, Pencil, Pin, Sliders, Sun, Moon, Keyboard, Key, Brain } from './Icons';
+import { Plus, Search, Trash, Pencil, Pin, Sliders, Sun, Moon, Keyboard, Key, Brain, Wave } from './Icons';
 import type { ConvoMeta, Settings } from '../types';
 
 interface Props {
@@ -22,6 +22,8 @@ interface Props {
   hasKey?: boolean;
   onOpenMemory: () => void;
   memoryCount: number;
+  onNudge: () => void;
+  nudging: boolean;
 }
 
 const DAY = 86_400_000;
@@ -99,6 +101,7 @@ export function Sidebar(p: Props) {
                 onClick={() => renaming !== c.id && p.onSelect(c.id)}
                 title={c.title}
               >
+                {c.unread && <span className="unread-dot" title="brb texted you" />}
                 {c.pinned && <span className="pin-dot"><Pin /></span>}
                 <div className={`convo-title${renaming === c.id ? ' renaming' : ''}`}>
                   {renaming === c.id ? (
@@ -159,6 +162,10 @@ export function Sidebar(p: Props) {
         <button className="foot-btn" onClick={p.onToggleTheme}>
           {p.settings.theme === 'dark' ? <Moon size={15} /> : <Sun size={15} />}
           {p.settings.theme === 'dark' ? 'dark' : 'light'} mode
+        </button>
+        <button className="foot-btn accent" onClick={p.onNudge} disabled={p.nudging}>
+          <Wave size={15} />
+          {p.nudging ? 'finding something…' : 'nudge me'}
         </button>
         <button className="foot-btn" onClick={p.onOpenMemory}>
           <Brain size={15} /> memory

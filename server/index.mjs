@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { Store } from './store.mjs';
 import { streamReply, generateTitle, checkAuth, childEnv, MODELS, EFFORTS, DEFAULTS } from './agent.mjs';
 import { Memory } from './memory.mjs';
+import { CheckIns } from './checkin.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -20,6 +21,8 @@ const store = new Store(DATA_DIR);
 const loaded = await store.init();
 const memory = new Memory(DATA_DIR);
 const remembered = await memory.init();
+const checkins = new CheckIns(DATA_DIR);
+await checkins.init();
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -136,6 +139,7 @@ app.post('/api/conversations', (_req, res) => {
 app.get('/api/conversations/:id', (req, res) => {
   const c = store.get(req.params.id);
   if (!c) return res.status(404).json({ error: 'not found' });
+  if (c.unread) store.patch(c.id, { unread: false });
   res.json(c);
 });
 
@@ -211,6 +215,20 @@ app.post('/api/conversations/:id/edit', async (req, res) => {
   });
 });
 
+/* ----------------------------- check-ins ----------------------------- */
+
+app.get('/api/checkins', (_req, res) => res.json(checkins.config()));
+
+app.patch('/api/checkins', async (req, res) => {
+  res.json(await checkins.setConfig(req.body ?? {}));
+});
+
+/** Forces an attempt now, ignoring the schedule. Powers the "nudge me" button. */
+app.post('/api/checkins/run', async (_req, res) => {
+  const result = await checkins.run({ store, memory, childEnv: childEnv(), force: true });
+  res.json(result ?? { skipped: true });
+});
+
 /* ------------------------------ memory ------------------------------ */
 
 app.get('/api/memory', (_req, res) => res.json(memory.list()));
@@ -243,6 +261,15 @@ if (fs.existsSync(DIST)) {
   app.get(/^(?!\/api\/).*/, (_req, res) =>
     res.status(503).type('html').send('<pre>UI not built yet. Run: npm run build</pre>'));
 }
+
+// Poll rather than schedule precisely: the decision is time-gated inside run(),
+// and a missed tick just means the next one picks it up.
+const CHECK_EVERY_MS = 20 * 60_000;
+setInterval(() => {
+  checkins.run({ store, memory, childEnv: childEnv() })
+    .then((r) => { if (r) console.log(`[checkin] sent -> ${r.conversationId}`); })
+    .catch(() => {});
+}, CHECK_EVERY_MS).unref();
 
 const server = app.listen(PORT, async () => {
   console.log(`\n  brb  ->  http://localhost:${PORT}`);

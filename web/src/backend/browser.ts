@@ -7,13 +7,14 @@
  * because this build has no backend.
  */
 import { PERSONA, DETAIL_MODE } from '../../../server/persona.mjs';
-import type { Conversation, ConvoMeta, Health, MemoryItem, Message, StreamEvent } from '../types';
+import type { CheckInConfig, CheckInResult, Conversation, ConvoMeta, Health, MemoryItem, Message, StreamEvent } from '../types';
 import type { Backend } from './types';
 import { DEMO_CONVERSATIONS, DEMO_MEMORY } from './demo';
 
 const KEY_STORE = 'brb.key';
 const CONVO_STORE = 'brb.convos.v1';
 const MEM_STORE = 'brb.memory.v1';
+const CI_STORE = 'brb.checkins.v1';
 const API = 'https://api.anthropic.com/v1/messages';
 
 const MODELS = [
@@ -62,6 +63,7 @@ function meta(c: Conversation): ConvoMeta {
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
     pinned: !!c.pinned,
+    unread: !!(c as Conversation & { unread?: boolean }).unread,
     messageCount: c.messages.length,
     preview: [...c.messages].reverse().find((m) => m.role === 'assistant')?.content.slice(0, 160) ?? '',
   };
@@ -148,6 +150,84 @@ async function learn(key: string, userText: string, reply: string) {
       if (typeof f === 'string' && f.length <= 220) addMem(f, 'auto');
     }
   } catch { /* extraction is optional */ }
+}
+
+/* ----------------------------- check-ins ----------------------------- */
+
+const CI_DEFAULTS: CheckInConfig = { enabled: true, everyHours: 6, lastSentAt: 0 };
+
+function readCI(): CheckInConfig {
+  try { return { ...CI_DEFAULTS, ...JSON.parse(localStorage.getItem(CI_STORE) ?? '{}') }; }
+  catch { return { ...CI_DEFAULTS }; }
+}
+function writeCI(c: CheckInConfig) {
+  try { localStorage.setItem(CI_STORE, JSON.stringify(c)); } catch { /* blocked */ }
+}
+
+const CI_SHARED = `only send something that earns the interruption:
+- a real follow up on what they were building
+- news or a release that genuinely matters to their projects or interests — SEARCH THE WEB, dont guess
+- something u thought of later about a problem they had
+
+never send "hey just checking in" with nothing behind it, or a repeat of something u already said.
+write it like a normal text. 1-2 lines, casual, no greeting preamble. drop the link if u found one.`;
+
+/**
+ * There is no background process in a static page, so this runs on demand (the
+ * "nudge me" button) and opportunistically on load when one is due.
+ */
+async function runCheckIn(key: string, force: boolean): Promise<CheckInResult> {
+  const convos = all().filter((c) => c.messages.length);
+  if (!convos.length) return { skipped: true };
+  const target = [...convos].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  const hours = Math.round((Date.now() - target.updatedAt) / 3_600_000);
+  if (!force && hours < 2) return { skipped: true };
+
+  const recent = convos.slice(0, 5)
+    .map((c) => `- "${c.title}" (${Math.round((Date.now() - c.updatedAt) / 3_600_000)}h ago)`)
+    .join('\n');
+  const mem = readMem().map((i) => `- ${i.text}`).join('\n') || '(nothing yet)';
+
+  const instruction = force
+    ? `${CI_SHARED}\n\nthey just tapped the button asking u to text them, so they DO want a message. find the best thing u have — searching for something new and relevant is usually strongest. do NOT output PASS.`
+    : `${CI_SHARED}\n\nif u genuinely have nothing: output exactly PASS and nothing else.`;
+
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-5',
+        max_tokens: 2000,
+        system: PERSONA,
+        output_config: { effort: 'medium' },
+        thinking: { type: 'adaptive' },
+        tools: [{ type: 'web_search_20260209', name: 'web_search' }],
+        messages: [{
+          role: 'user',
+          content: `ur deciding whether to text them first, unprompted.\n\n${instruction}\n\n# what u know abt them\n${mem}\n\n# recent convos\n${recent}\n\n# timing\nlast talked ${hours}h ago. today is ${new Date().toDateString()}.`,
+        }],
+      }),
+    });
+    if (!res.ok) return { skipped: true };
+    const j = await res.json();
+    const text = (j.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
+    if (!text || text.length < 4 || (!force && /^PASS\b/i.test(text))) return { skipped: true };
+
+    target.messages.push({ id: uuid(), role: 'assistant', content: text, createdAt: Date.now(), checkin: true });
+    target.updatedAt = Date.now();
+    (target as Conversation & { unread?: boolean }).unread = true;
+    save();
+    writeCI({ ...readCI(), lastSentAt: Date.now() });
+    return { conversationId: target.id, text };
+  } catch {
+    return { skipped: true };
+  }
 }
 
 /* ------------------------------ API calls ------------------------------ */
@@ -244,6 +324,8 @@ export const browserBackend: Backend = {
   async get(id) {
     const c = all().find((x) => x.id === id);
     if (!c) throw new Error('not found');
+    const marked = c as Conversation & { unread?: boolean };
+    if (marked.unread) { marked.unread = false; save(); }
     return structuredClone(c);
   },
 
@@ -273,6 +355,18 @@ export const browserBackend: Backend = {
     list.splice(i, 1);
     save();
     return { ok: true };
+  },
+
+  async getCheckins() { return readCI(); },
+  async setCheckins(patch) {
+    const next = { ...readCI(), ...patch };
+    writeCI(next);
+    return next;
+  },
+  async runCheckin() {
+    const key = browserBackend.getKey?.() ?? null;
+    if (!key) return { skipped: true };
+    return runCheckIn(key, true);
   },
 
   async listMemory() {

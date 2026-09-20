@@ -542,3 +542,21 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* ============================ check-ins ============================ */
+.unread-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); flex-shrink: 0;
+}
+.convo .unread-dot + .convo-title { font-weight: 550; color: var(--ink); }
+
+.checkin-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-bottom: 5px; padding: 0 2px;
+  font-size: 10.5px; font-weight: 550; letter-spacing: 0.03em;
+  text-transform: uppercase; color: var(--accent);
+}
+
+.foot-btn.accent { color: var(--accent); font-weight: 500; }
+.foot-btn.accent:hover { background: var(--accent-soft); color: var(--accent); }
+.foot-btn:disabled { opacity: 0.6; cursor: default; }

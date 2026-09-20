@@ -25,3 +25,4 @@ export const Brain = ({ size = 14 }: P) => <svg {...s(size)}><path d="M9.5 3a2.8
 export const Keyboard = ({ size }: P) => <svg {...s(size)}><rect x="2" y="6" width="20" height="12" rx="2.2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8" /></svg>;
 export const X = ({ size }: P) => <svg {...s(size)}><path d="M18 6 6 18M6 6l12 12" /></svg>;
 export const Key = ({ size }: P) => <svg {...s(size)}><circle cx="7.5" cy="15.5" r="4" /><path d="m10.5 12.5 8-8M16 7l2.5 2.5M13.5 9.5 16 12" /></svg>;
+export const Wave = ({ size = 14 }: P) => <svg {...s(size)}><path d="M3 12h3l2.5-7 3 14 2.5-9 2 4h5" /></svg>;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { backend } from './backend';
-import type { Conversation, ConvoMeta, Health, Message, Settings, StreamEvent } from './types';
+import type { CheckInConfig, Conversation, ConvoMeta, Health, Message, Settings, StreamEvent } from './types';
 import { Sidebar } from './components/Sidebar';
 import { Composer } from './components/Composer';
 import { MessageBubble } from './components/MessageBubble';
@@ -47,6 +47,8 @@ export default function App() {
   const [showKey, setShowKey] = useState(false);
   const [showMemory, setShowMemory] = useState(false);
   const [memoryCount, setMemoryCount] = useState(0);
+  const [checkins, setCheckins] = useState<CheckInConfig | null>(null);
+  const [nudging, setNudging] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(() => backend.getKey?.() ?? null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -102,6 +104,8 @@ export default function App() {
   useEffect(() => { refreshList(); }, [refreshList]);
 
   useEffect(() => { backend.listMemory().then((m) => setMemoryCount(m.length)).catch(() => {}); }, []);
+
+  useEffect(() => { backend.getCheckins().then(setCheckins).catch(() => {}); }, []);
 
   useEffect(() => {
     if (!activeId) { setConvo(null); return; }
@@ -251,6 +255,26 @@ export default function App() {
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
+  /** Ask it to text you now. Unlike the scheduled run, this always answers. */
+  const nudge = useCallback(async () => {
+    if (nudging) return;
+    setNudging(true);
+    try {
+      const r = await backend.runCheckin();
+      await refreshList();
+      if (r.conversationId) {
+        setActiveId(r.conversationId);
+        if (isMobile) setSidebarOpen(false);
+      } else {
+        setToast(backend.standalone && !backend.getKey?.() ? 'add an api key first' : 'nothing worth saying rn');
+      }
+    } catch {
+      setToast('couldnt reach it');
+    } finally {
+      setNudging(false);
+    }
+  }, [nudging, refreshList, isMobile]);
+
   /* ------------------------- conversation ops ------------------------- */
 
   const newChat = useCallback(() => {
@@ -336,6 +360,8 @@ export default function App() {
         onDelete={deleteChat}
         onOpenSettings={() => setShowSettings(true)}
         onOpenShortcuts={() => setShowShortcuts(true)}
+        onNudge={nudge}
+        nudging={nudging}
         onOpenMemory={() => setShowMemory(true)}
         memoryCount={memoryCount}
         onOpenKey={backend.standalone ? () => setShowKey(true) : undefined}
@@ -436,7 +462,9 @@ export default function App() {
         <SettingsModal
           settings={settings}
           health={health}
+          checkins={checkins}
           onChange={(patch) => setSettings((s) => ({ ...s, ...patch }))}
+          onCheckins={(patch) => backend.setCheckins(patch).then(setCheckins).catch(() => {})}
           onClose={() => setShowSettings(false)}
         />
       )}

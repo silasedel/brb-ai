@@ -11,6 +11,7 @@ export interface Message {
   aborted?: boolean;
   usedSearch?: boolean;
   detail?: boolean;
+  checkin?: boolean;
   model?: string;
   error?: AgentError;
   meta?: { costUsd?: number | null; durationMs?: number | null; turns?: number | null };
@@ -32,6 +33,7 @@ export interface ConvoMeta {
   createdAt: number;
   updatedAt: number;
   pinned: boolean;
+  unread?: boolean;
   messageCount: number;
   preview: string;
 }
@@ -67,4 +69,16 @@ export interface MemoryItem {
   text: string;
   createdAt: number;
   source: 'auto' | 'manual';
+}
+
+export interface CheckInConfig {
+  enabled: boolean;
+  everyHours: number;
+  lastSentAt: number;
+}
+
+export interface CheckInResult {
+  conversationId?: string;
+  text?: string;
+  skipped?: boolean;
 }

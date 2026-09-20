@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Markdown } from './Markdown';
-import { Copy, Check, Refresh, Pencil, Globe, Brain, X } from './Icons';
+import { Copy, Check, Refresh, Pencil, Globe, Brain, Wave, X } from './Icons';
 import type { Message } from '../types';
 
 interface Props {
@@ -81,6 +81,9 @@ export function MessageBubble({ msg, streaming, toolNote, isLastAssistant, onReg
   return (
     <div className={`row ${me ? 'me' : 'them'}`}>
       <div className={`bubble-wrap${hasBlock && !me ? ' wide' : ''}`}>
+        {!me && msg.checkin && (
+          <div className="checkin-tag"><Wave size={12} /> brb texted you first</div>
+        )}
         {!me && toolNote && (
           <div className="tool-chip">
             <span className="dot" />

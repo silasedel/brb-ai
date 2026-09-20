@@ -85,6 +85,32 @@ inspect or correct is a liability, so all of it is visible and yours.
 
 ---
 
+## It texts you first
+
+Every chatbot waits for you to speak. This one doesn't.
+
+On a schedule, it looks at what it knows about you and what you were last
+building, **searches the web**, and decides whether it has anything genuinely
+worth saying. Usually it decides no — that restraint is the feature. A bot that
+pings you daily with "just checking in!" gets muted in a week.
+
+When it does have something, it lands in the conversation with an unread dot:
+
+> **brb texted you first**
+> react 19.3 dropped sept 9 — view transitions are stable now, which is basically
+> free animations for ur chat msg list entering/leaving
+>
+> also fragment refs landed, handy for scroll-to-bottom without wrapper divs
+
+That's not a canned notification. It knew a React chat app was being built,
+went and found a real release, and picked out the two things in it that matter
+for *that* — scroll-to-bottom is a chat-app problem.
+
+Impatient? **nudge me** in the sidebar makes it go find something right now.
+Don't want it? One switch in settings. It never fires between 11pm and 8am.
+
+---
+
 ## What's in it
 
 **Chat**
@@ -102,6 +128,7 @@ inspect or correct is a liability, so all of it is visible and yours.
 - **Detail mode** (`⌘⇧D`): the escape hatch for when you genuinely want the
   long, thorough version
 - **Persistent memory** across every conversation, fully editable
+- **Proactive check-ins** — it starts conversations when it has a reason to
 
 **The app**
 - Warm paper-and-ink design, light and dark
@@ -145,6 +172,7 @@ server/
   agent.mjs     Claude Agent SDK wrapper, auth probe
   persona.mjs   the personality
   memory.mjs    fact extraction + recall
+  checkin.mjs   deciding whether to text you first
   store.mjs     JSON persistence
 web/src/
   backend/      one interface, two implementations (local server / browser)

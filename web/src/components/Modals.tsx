@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import type { Health, Settings } from '../types';
+import type { CheckInConfig, Health, Settings } from '../types';
 
 const EFFORT_HINT: Record<string, string> = {
   low: 'snappy', medium: 'balanced', high: 'default', xhigh: 'deeper', max: 'no limits',
 };
 
 export function SettingsModal({
-  settings, health, onChange, onClose,
+  settings, health, checkins, onChange, onCheckins, onClose,
 }: {
   settings: Settings;
   health: Health | null;
+  checkins: CheckInConfig | null;
   onChange: (patch: Partial<Settings>) => void;
+  onCheckins: (patch: Partial<CheckInConfig>) => void;
   onClose: () => void;
 }) {
   return (
@@ -59,6 +61,42 @@ export function SettingsModal({
             </div>
             <div className={`switch${settings.webSearch ? ' on' : ''}`} />
           </div>
+        </div>
+
+        <div className="field">
+          <label className="field-label">texting you first</label>
+          <div
+            className="switch-row"
+            onClick={() => onCheckins({ enabled: !(checkins?.enabled ?? true) })}
+            role="button"
+            tabIndex={0}
+          >
+            <div>
+              <div className="t">let it start conversations</div>
+              <div className="d">it looks for something genuinely relevant, or stays quiet</div>
+            </div>
+            <div className={`switch${checkins?.enabled ? ' on' : ''}`} />
+          </div>
+          {checkins?.enabled && (
+            <>
+              <div className="seg" style={{ marginTop: 8 }}>
+                {[3, 6, 12, 24].map((h) => (
+                  <button
+                    key={h}
+                    className={checkins.everyHours === h ? 'on' : ''}
+                    onClick={() => onCheckins({ everyHours: h })}
+                  >
+                    {h < 24 ? `${h}h` : 'daily'}
+                    <small>at most</small>
+                  </button>
+                ))}
+              </div>
+              <div className="field-note">
+                a ceiling, not a schedule — it only sends when it actually has something,
+                and never between 11pm and 8am.
+              </div>
+            </>
+          )}
         </div>
 
         <div className="modal-foot">
