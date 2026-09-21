@@ -16,6 +16,7 @@ from nearest import nearest as nearest_neighbours
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, 'out')
+OUT_COLOR = os.path.join(HERE, 'out_color')
 IMG = os.path.join(OUT, 'images')
 os.makedirs(IMG, exist_ok=True)
 PORT = int(os.environ.get('GEN_PORT', 4319))
@@ -45,45 +46,121 @@ def pick_device():
 
 dev = pick_device()
 _lock = threading.Lock()
-_state = {'model': None, 'classes': [], 'diff': None, 'mtime': 0}
+
+# Two generators: monochrome line doodles, and 32x32 colour photographs. Colour
+# covers far more subjects and reads as an image, so it is preferred when it can
+# draw what was asked for.
+# Until the colour model has had enough passes it outputs static, which is worse
+# than a doodle -- so it stays out of the routing until it is actually usable.
+COLOUR_MIN_EPOCHS = 20
+
+_models = {
+    'colour': {'dir': OUT_COLOR, 'model': None, 'classes': [], 'diff': None,
+               'mtime': 0, 'shape': (3, 32, 32), 'colour': True, 'epochs': 0},
+    'doodle': {'dir': OUT, 'model': None, 'classes': [], 'diff': None,
+               'mtime': 0, 'shape': (1, 28, 28), 'colour': False, 'epochs': 0},
+}
 
 
-def load_if_newer():
-    """Picks up a fresh checkpoint while training is still running."""
-    path = os.path.join(OUT, 'model.pt')
-    if not os.path.exists(path):
+def load_if_newer(kind=None):
+    """Picks up fresh checkpoints while training is still running."""
+    any_ready = False
+    for name, st in _models.items():
+        if kind and name != kind:
+            any_ready = any_ready or st['model'] is not None
+            continue
+        path = os.path.join(st['dir'], 'model.pt')
+        if not os.path.exists(path):
+            continue
+        mtime = os.path.getmtime(path)
+        if st['model'] is not None and mtime == st['mtime']:
+            any_ready = True
+            continue
+        try:
+            ck = torch.load(path, map_location=dev)
+            m = UNet(len(ck['classes']), base=ck.get('base', 64),
+                     in_ch=ck.get('in_ch', 1), attn=ck.get('attn', False)).to(dev)
+            m.load_state_dict(ck['model'])
+            m.eval()
+            epochs = 0
+            try:
+                with open(os.path.join(st['dir'], 'log.json')) as f:
+                    epochs = len(json.load(f).get('epochs', []))
+            except Exception:
+                pass
+            st.update(model=m, classes=ck['classes'], diff=Diffusion(ck['T'], dev),
+                      mtime=mtime, epochs=epochs)
+            print(f'[gen] loaded {name} ({len(ck["classes"])} subjects, {epochs} epochs)', flush=True)
+            any_ready = True
+        except Exception as e:
+            print(f'[gen] could not load {name}: {e}', flush=True)
+    return any_ready
+
+
+def usable(kind):
+    st = _models[kind]
+    if st['model'] is None:
         return False
-    mtime = os.path.getmtime(path)
-    if _state['model'] is not None and mtime == _state['mtime']:
-        return True
-    ck = torch.load(path, map_location=dev)
-    m = UNet(len(ck['classes'])).to(dev)
-    m.load_state_dict(ck['model'])
-    m.eval()
-    _state.update(model=m, classes=ck['classes'], diff=Diffusion(ck['T'], dev), mtime=mtime)
-    print(f'[gen] loaded checkpoint ({len(ck["classes"])} classes)', flush=True)
-    return True
+    return kind != 'colour' or st['epochs'] >= COLOUR_MIN_EPOCHS
 
 
-def to_png(sample, path, scale=6):
-    """Upscales with nearest-neighbour so 28x28 is legible on screen."""
-    arr = ((sample[0].cpu().numpy() + 1) * 127.5).clip(0, 255).astype('uint8')
+def find_subject(want):
+    """Which model can draw this, preferring colour once it is usable."""
+    want = want.strip().lower().replace('_', ' ')
+    order = [k for k in ('colour', 'doodle') if usable(k)]
+    for kind in order:
+        norm = [c.replace('_', ' ') for c in _models[kind]['classes']]
+        for i, c in enumerate(norm):
+            if c == want:
+                return kind, i
+    for kind in order:
+        norm = [c.replace('_', ' ') for c in _models[kind]['classes']]
+        for i, c in enumerate(norm):
+            if c in want or want in c:
+                return kind, i
+    return None, None
+
+
+def all_subjects():
+    seen = []
+    for kind in [k for k in ('colour', 'doodle') if usable(k)]:
+        for c in _models[kind]['classes']:
+            c = c.replace('_', ' ')
+            if c not in seen:
+                seen.append(c)
+    return sorted(seen)
+
+
+def to_png(sample, path, scale=6, colour=False):
+    """Upscales with nearest-neighbour so a tiny image is legible on screen."""
+    a = ((sample.cpu().numpy() + 1) * 127.5).clip(0, 255).astype('uint8')
     rows = []
-    for r in arr:
-        row = bytearray()
-        for v in r:
-            row.extend([255 - int(v)] * scale)   # invert: dark ink on white
-        for _ in range(scale):
-            rows.append(row)
-    write_png(path, rows)
+    if colour:
+        a = a.transpose(1, 2, 0)                  # CHW -> HWC
+        for r in a:
+            row = bytearray()
+            for px in r:
+                row.extend(bytes(px) * scale)
+            for _ in range(scale):
+                rows.append(row)
+        write_png(path, rows, colour=True)
+    else:
+        for r in a[0]:
+            row = bytearray()
+            for v in r:
+                row.extend([255 - int(v)] * scale)   # invert: dark ink on white
+            for _ in range(scale):
+                rows.append(row)
+        write_png(path, rows)
 
 
-def draw(label_idx, n, guidance, steps, capture=0):
+def draw(kind, label_idx, n, guidance, steps, capture=0):
+    st = _models[kind]
     with _lock:
-        model, diff = _state['model'], _state['diff']
         labels = torch.full((n,), label_idx, device=dev, dtype=torch.long)
-        return diff.sample_ddim(model, labels, len(_state['classes']),
-                                guidance=guidance, steps=steps, capture=capture)
+        return st['diff'].sample_ddim(st['model'], labels, len(st['classes']),
+                                      guidance=guidance, steps=steps,
+                                      capture=capture, shape=st['shape'])
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -107,10 +184,25 @@ class Handler(BaseHTTPRequestHandler):
                     log = json.load(f)
             except Exception:
                 pass
+            colour_log = {}
+            try:
+                with open(os.path.join(OUT_COLOR, 'log.json')) as f:
+                    colour_log = json.load(f)
+            except Exception:
+                pass
             return self._send(200, {
                 'ready': ready,
-                'classes': _state['classes'],
+                'classes': all_subjects(),
                 'device': dev,
+                'models': {
+                    'colour': {'ready': usable('colour'),
+                               'training': _models['colour']['model'] is not None and not usable('colour'),
+                               'subjects': len(_models['colour']['classes']),
+                               'epochs': len(colour_log.get('epochs', []))},
+                    'doodle': {'ready': _models['doodle']['model'] is not None,
+                               'subjects': len(_models['doodle']['classes']),
+                               'epochs': len(log.get('epochs', []))},
+                },
                 'epochsTrained': len(log.get('epochs', [])),
                 'lastLoss': log.get('epochs', [{}])[-1].get('loss') if log.get('epochs') else None,
             })
@@ -119,8 +211,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == '/proof':
             return self.proof()
-        if self.path != '/draw':
-            return self._send(404, {'error': 'not found'})
+        if self.path == '/draw':
+            return self.draw_request()
+        return self._send(404, {'error': 'not found'})
 
     def proof(self):
         """Draws something, then digs up its closest matches in the training set."""
@@ -132,13 +225,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(503, {'error': 'model not ready'})
 
         want = str(body.get('subject', '')).strip().lower()
-        classes = _state['classes']
+        classes = _models['doodle']['classes']
         idx = next((i for i, c in enumerate(classes) if c == want), None)
         if idx is None:
             return self._send(422, {'error': 'unknown subject', 'classes': classes})
 
         t0 = time.time()
-        sample = draw(idx, 1, float(body.get('guidance', 1.0)), int(body.get('steps', 80)))
+        sample = draw('doodle', idx, 1, float(body.get('guidance', 1.0)), int(body.get('steps', 80)))
         stamp = int(time.time() * 1000)
 
         gen_name = f'proof_{stamp}_gen.png'
@@ -160,6 +253,9 @@ class Handler(BaseHTTPRequestHandler):
                          'nearest': near,
                          'searched': 30000,
                          'ms': int((time.time() - t0) * 1000)})
+
+    def draw_request(self):
+        """Draws one or more images, or the denoising as frames."""
         try:
             body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or b'{}')
         except Exception:
@@ -169,13 +265,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(503, {'error': 'model still training, nothing to draw with yet'})
 
         want = str(body.get('subject', '')).strip().lower()
-        classes = _state['classes']
-        # Exact match first, then a loose contains, so "a cat" or "kitty cat" lands.
-        idx = next((i for i, c in enumerate(classes) if c == want), None)
+        kind, idx = find_subject(want)
         if idx is None:
-            idx = next((i for i, c in enumerate(classes) if c in want or want in c), None)
-        if idx is None:
-            return self._send(422, {'error': 'unknown subject', 'classes': classes})
+            return self._send(422, {'error': 'unknown subject', 'classes': all_subjects()})
+        st = _models[kind]
+        classes = st['classes']
 
         n = max(1, min(4, int(body.get('n', 1))))
         guidance = float(body.get('guidance', 1.0))
@@ -184,24 +278,25 @@ class Handler(BaseHTTPRequestHandler):
         t0 = time.time()
 
         if capture:
-            samples, frames = draw(idx, 1, guidance, steps, capture)
+            samples, frames = draw(kind, idx, 1, guidance, steps, capture)
             stamp = int(time.time() * 1000)
             urls = []
             for k, fr in enumerate(frames):
                 name = f'step_{stamp}_{k:02d}.png'
-                to_png(fr[0], os.path.join(IMG, name))
+                to_png(fr[0], os.path.join(IMG, name), colour=st['colour'])
                 urls.append(f'/api/gen/img/{name}')
-            return self._send(200, {'subject': classes[idx], 'frames': urls,
+            return self._send(200, {'subject': classes[idx], 'kind': kind, 'frames': urls,
                                     'ms': int((time.time() - t0) * 1000)})
 
-        samples = draw(idx, n, guidance, steps)
+        samples = draw(kind, idx, n, guidance, steps)
 
         urls = []
         for i in range(n):
             name = f'{classes[idx].replace(" ", "_")}_{int(time.time() * 1000)}_{i}.png'
-            to_png(samples[i], os.path.join(IMG, name))
+            to_png(samples[i], os.path.join(IMG, name), colour=st['colour'])
             urls.append(f'/api/gen/img/{name}')
-        self._send(200, {'subject': classes[idx], 'images': urls, 'ms': int((time.time() - t0) * 1000)})
+        self._send(200, {'subject': classes[idx], 'kind': kind, 'images': urls,
+                         'ms': int((time.time() - t0) * 1000)})
 
 
 if __name__ == '__main__':

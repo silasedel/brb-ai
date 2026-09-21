@@ -55,7 +55,10 @@ def grid(samples, cols=8):
 print(f'device: {dev}')
 X, Y, NAMES = load()
 N, C = X.shape[0], len(NAMES)
-print(f'{N:,} colour images, {C} classes')
+# 614MB of unified memory: keeping the whole set on the GPU removes a per-step
+# CPU gather and host->device copy from the hot loop.
+X, Y = X.to(dev), Y.to(dev)
+print(f'{N:,} colour images, {C} classes (resident on {dev})')
 
 model = UNet(C, base=BASE, in_ch=3, attn=True).to(dev)
 diff = Diffusion(T, dev)
@@ -73,12 +76,14 @@ for q in ema.parameters():
 EMA_DECAY = 0.9995
 
 
+_ema_p = list(ema.parameters())
+_mdl_p = list(model.parameters())
+
+
 @torch.no_grad()
 def update_ema():
-    for a, b in zip(ema.parameters(), model.parameters()):
-        a.lerp_(b.detach(), 1 - EMA_DECAY)
-    for a, b in zip(ema.buffers(), model.buffers()):
-        a.copy_(b)
+    # One fused op rather than ~95 separate kernel launches per step.
+    torch._foreach_lerp_(_ema_p, _mdl_p, 1 - EMA_DECAY)
 
 
 WARMUP = 500
@@ -90,13 +95,13 @@ steps_per_epoch = N // BATCH
 t_start = time.time()
 
 for ep in range(1, EPOCHS + 1):
-    perm = torch.randperm(N)
+    perm = torch.randperm(N, device=dev)
     run, t0 = 0.0, time.time()
 
     for s in range(steps_per_epoch):
         idx = perm[s * BATCH:(s + 1) * BATCH]
-        x0 = X[idx].to(dev, non_blocking=True)
-        y = Y[idx].to(dev, non_blocking=True)
+        x0 = X[idx]
+        y = Y[idx]
 
         # Horizontal flips: 500 images per class is thin, and a mirrored photo
         # is still a valid photo, so this effectively doubles the data for free.
