@@ -82,9 +82,12 @@ _mdl_p = list(model.parameters())
 
 
 @torch.no_grad()
-def update_ema():
-    # One fused op rather than ~95 separate kernel launches per step.
-    torch._foreach_lerp_(_ema_p, _mdl_p, 1 - EMA_DECAY)
+def update_ema(step):
+    # Warm the decay up. At a flat 0.9999 the average has a ~10,000 step horizon,
+    # so early on it is still mostly the random initialisation and samples come
+    # out as noise -- which is exactly what happened before this was added.
+    d = min(EMA_DECAY, (1 + step) / (10 + step))
+    torch._foreach_lerp_(_ema_p, _mdl_p, 1 - d)
 
 
 WARMUP = 1000
@@ -135,7 +138,7 @@ for ep in range(1, EPOCHS + 1):
             g['lr'] = lr
 
         opt.step()
-        update_ema()
+        update_ema(step_count)
         run += loss.item()
 
         if s % 100 == 0:
