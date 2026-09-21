@@ -385,7 +385,6 @@ export default function App() {
         canDraw={canDraw}
         onOpenMemory={() => setShowMemory(true)}
         memoryCount={memoryCount}
-        onOpenKey={backend.standalone ? () => setShowKey(true) : undefined}
         hasKey={!!apiKey}
         open={sidebarOpen}
         onToggleTheme={() => setSettings((s) => ({ ...s, theme: s.theme === 'dark' ? 'light' : 'dark' }))}
@@ -448,17 +447,14 @@ export default function App() {
         {needsSetup && (
           <div style={{ padding: '0 20px' }}>
             <div className="setup">
-              <div className="t">{backend.standalone ? 'try it urself' : 'one-time setup'}</div>
+              <div className="t">{backend.standalone ? 'what this is' : 'one-time setup'}</div>
               {backend.standalone ? (
                 <>
                   <div className="b">
-                    these are real saved chats — scroll em. to talk to it urself, add an anthropic
-                    api key. free to make, and it never leaves this browser. (the drawings were made
-                    by a model trained from scratch — that part only runs locally, see the repo.)
+                    this is a showcase — real saved conversations from the actual app, including
+                    drawings made by a model trained from scratch. the working version runs on your
+                    own machine, no api key: <a href="https://github.com/silasedel/brb-ai" target="_blank" rel="noreferrer">github.com/silasedel/brb-ai</a>
                   </div>
-                  <button className="btn primary" style={{ marginTop: 10 }} onClick={() => setShowKey(true)}>
-                    add api key
-                  </button>
                 </>
               ) : (
                 <>
