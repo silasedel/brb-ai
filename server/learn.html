@@ -86,6 +86,11 @@
   .picker button:disabled{opacity:.45;cursor:default}
   @media(max-width:700px){.drawbox{flex-direction:column}.canvas{width:100%;height:auto;aspect-ratio:1}}
 
+  .switcher{display:inline-flex;gap:3px;background:var(--surface-2);padding:3px;
+            border-radius:10px;margin-bottom:22px}
+  .switcher button{padding:7px 14px;font-size:12.5px;border:none;background:none}
+  .switcher button.on{background:var(--surface);box-shadow:var(--shadow-sm)}
+
   .proofbox{display:flex;gap:24px;background:var(--surface);border:1px solid var(--line);
             border-radius:14px;padding:20px;margin-bottom:34px;flex-wrap:wrap}
   .proof-copy{flex:1;min-width:260px}
@@ -117,18 +122,19 @@
 <body>
 <div class="wrap">
   <h1>watching it learn to draw</h1>
-  <p class="sub">
-    A diffusion model built from scratch — no ML libraries, no pretrained weights — trained on
-    <b>1.9 million human doodles</b>. Every frame is the same 16 prompts, re-rendered from that
-    epoch's checkpoint. <b>It starts as pure static.</b>
-  </p>
+  <p class="sub" id="sub"></p>
 
   <div class="stats">
-    <div class="stat"><div class="n">1,920,000</div><div class="l">doodles trained on</div></div>
-    <div class="stat"><div class="n">1,961,857</div><div class="l">parameters</div></div>
+    <div class="stat"><div class="n" id="s-imgs">–</div><div class="l" id="s-imgs-l">images trained on</div></div>
+    <div class="stat"><div class="n" id="s-params">–</div><div class="l">parameters</div></div>
     <div class="stat"><div class="n">0</div><div class="l">pretrained weights</div></div>
     <div class="stat"><div class="n" id="s-epochs">–</div><div class="l">epochs</div></div>
     <div class="stat"><div class="n" id="s-loss">–</div><div class="l">current loss</div></div>
+  </div>
+
+  <div class="switcher" id="switcher" style="display:none">
+    <button data-m="colour">colour · 100 objects</button>
+    <button data-m="doodle">doodles · 16 things</button>
   </div>
 
   <div id="compare-wrap" style="display:none">
@@ -175,26 +181,50 @@
 
 <script>
 // Six subjects that read clearly at 28px, for the before/after strip.
-const HEROES = ['bicycle', 'cat', 'house', 'ice cream', 'snowman', 'star'];
+const HEROES = {
+  doodle: ['bicycle', 'cat', 'house', 'ice cream', 'snowman', 'star'],
+  colour: ['elephant', 'castle', 'sunflower', 'mountain', 'tiger', 'rose'],
+};
+const RUNS = {
+  doodle: {
+    path: '/api/gen/epochs', pad: 2, cols: 8, rows: 4,
+    params: '1,961,857', imgs: '1,920,000', imgsLabel: 'doodles trained on',
+    blurb: 'A diffusion model built from scratch — no ML libraries, no pretrained weights — trained on <b>1.9 million human doodles</b>. Every frame is the same 16 prompts, re-rendered from that epoch\'s checkpoint. <b>It starts as pure static.</b>',
+  },
+  colour: {
+    path: '/api/gen/epochs-colour', pad: 3, cols: 8, rows: 2,
+    params: '7,501,827', imgs: '50,000', imgsLabel: 'photographs trained on',
+    blurb: 'The same idea on real photographs: <b>100 objects in colour</b>, learned from 50,000 photos. Colour is much harder than line drawings, so this one stays static for longer before shapes appear. <b>Every frame is the same 16 prompts.</b>',
+  },
+};
+let mode = 'doodle';
 let classes = [], epochs = [], idx = 0, playing = false, timer = null, built = false;
+let tiles = [];   // class name per grid position, for the current run
 
 const $ = (s, r = document) => r.querySelector(s);
-const url = (ep) => `/api/gen/epochs/epoch_${String(ep).padStart(2, '0')}.png`;
+const url = (ep) => `${RUNS[mode].path}/epoch_${String(ep).padStart(RUNS[mode].pad, '0')}.png`;
 
 /** Points an <img> at one tile of the 8x4 sprite sheet. */
 function tileAt(img, tileIndex, epoch) {
-  const col = tileIndex % 8, row = (tileIndex / 8) | 0;
+  const { cols } = RUNS[mode];
+  const col = tileIndex % cols, row = (tileIndex / cols) | 0;
   img.style.left = `${-col * 100}%`;
   img.style.top = `${-row * 100}%`;
+  img.style.width = `${cols * 100}%`;
+  img.style.height = `${RUNS[mode].rows * 100}%`;
   const want = url(epoch);
-  if (img.dataset.ep !== String(epoch)) { img.src = want; img.dataset.ep = String(epoch); }
+  const key = `${mode}:${epoch}`;
+  if (img.dataset.ep !== key) { img.src = want; img.dataset.ep = key; }
 }
 
 async function poll() {
   try {
-    const log = await (await fetch('/api/gen/epochs/log.json?t=' + Date.now())).json();
+    const log = await (await fetch(`${RUNS[mode].path}/log.json?t=${Date.now()}`)).json();
     if (log.epochs.length) {
       classes = log.classes;
+      // The colour run previews a chosen subset; the doodle run previews all of
+      // its classes, twice each.
+      tiles = log.preview ? log.preview.slice() : classes.flatMap((c) => [c, c]);
       const grew = log.epochs.length !== epochs.length;
       const wasAtEnd = idx >= epochs.length - 1;
       epochs = log.epochs;
@@ -208,7 +238,7 @@ async function poll() {
 }
 
 function build() {
-  const labels = classes.flatMap((c) => [c, c]);
+  const labels = tiles;
   $('#panel').innerHTML = `
     <div class="head">
       <div class="epoch" id="ep">epoch 1</div>
@@ -239,7 +269,7 @@ function build() {
   $('#compare-wrap').style.display = '';
   buildPicker();
   buildProof();
-  $('#compare').innerHTML = HEROES.map((h) => `
+  $('#compare').innerHTML = HEROES[mode].filter((h) => tiles.includes(h)).map((h) => `
     <div class="pair" data-name="${h}">
       <div class="row">
         <div class="cell ghost"><img alt="${h} first"></div>
@@ -303,6 +333,7 @@ async function watchDraw(subject, btn) {
 }
 
 function buildProof() {
+  if (mode !== 'doodle') { $('#proof-wrap').style.display = 'none'; return; }
   $('#proof-wrap').style.display = '';
   $('#proof-picker').innerHTML = classes
     .map((c) => `<button data-c="${c}">${c}</button>`).join('');
@@ -343,11 +374,11 @@ async function runProof(subject, btn) {
 function renderCompare() {
   const latest = epochs[epochs.length - 1].epoch;
   document.querySelectorAll('.pair').forEach((p) => {
-    const i = classes.indexOf(p.dataset.name);
+    const i = tiles.indexOf(p.dataset.name);
     if (i < 0) return;
     const imgs = p.querySelectorAll('img');
-    tileAt(imgs[0], i * 2, epochs[0].epoch);   // first attempt
-    tileAt(imgs[1], i * 2, latest);            // where it is now
+    tileAt(imgs[0], i, epochs[0].epoch);   // first attempt
+    tileAt(imgs[1], i, latest);            // where it is now
   });
 }
 
@@ -361,6 +392,10 @@ function render() {
   $('#secs').textContent = e.seconds + 's';
   $('#s-epochs').textContent = epochs.length;
   $('#s-loss').textContent = epochs[epochs.length - 1].loss.toFixed(4);
+  $('#sub').innerHTML = RUNS[mode].blurb;
+  $('#s-imgs').textContent = RUNS[mode].imgs;
+  $('#s-imgs-l').textContent = RUNS[mode].imgsLabel;
+  $('#s-params').textContent = RUNS[mode].params;
   $('#livetag').innerHTML = idx === epochs.length - 1
     ? '<span class="live"><i></i>live</span>' : '';
   $('#scrub').max = epochs.length - 1;
@@ -401,7 +436,27 @@ addEventListener('keydown', (e) => {
   if (e.key === 'ArrowLeft') { stop(); idx--; render(); }
 });
 
-poll();
+$('#switcher').onclick = (e) => {
+  const b = e.target.closest('button');
+  if (!b || b.dataset.m === mode) return;
+  mode = b.dataset.m;
+  document.querySelectorAll('#switcher button').forEach((x) => x.classList.toggle('on', x.dataset.m === mode));
+  stop();
+  epochs = []; built = false; idx = 0;
+  $('#panel').innerHTML = '<div class="waiting"><b>loading…</b></div>';
+  poll();
+};
+
+// Show the colour run by default once it has frames, since it is the better one.
+(async () => {
+  try {
+    const r = await fetch(`${RUNS.colour.path}/log.json?t=${Date.now()}`);
+    if (r.ok && (await r.json()).epochs?.length >= 3) mode = 'colour';
+  } catch {}
+  $('#switcher').style.display = '';
+  document.querySelectorAll('#switcher button').forEach((x) => x.classList.toggle('on', x.dataset.m === mode));
+  poll();
+})();
 </script>
 </body>
 </html>

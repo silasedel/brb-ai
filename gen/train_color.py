@@ -5,7 +5,7 @@ The doodle model learned line drawings. This one learns photographs, which is
 what makes the output read as an image rather than something you could have
 hand-drawn in advance.
 """
-import json, os, pickle, sys, time
+import json, math, os, pickle, sys, time
 import numpy as np
 import torch
 
@@ -73,7 +73,8 @@ ema = UNet(C, base=BASE, in_ch=3, attn=True).to(dev)
 ema.load_state_dict(model.state_dict())
 for q in ema.parameters():
     q.requires_grad_(False)
-EMA_DECAY = 0.9995
+# Longer run -> longer averaging horizon; 0.9999 spans ~10k steps.
+EMA_DECAY = float(os.environ.get('EMA', 0.9999))
 
 
 _ema_p = list(ema.parameters())
@@ -86,12 +87,13 @@ def update_ema():
     torch._foreach_lerp_(_ema_p, _mdl_p, 1 - EMA_DECAY)
 
 
-WARMUP = 500
+WARMUP = 1000
 step_count = 0
 
 preview_idx = torch.tensor([NAMES.index(p) for p in PREVIEW], device=dev)
 log = {'classes': NAMES, 'preview': PREVIEW, 'epochs': [], 'total': N, 'colour': True}
 steps_per_epoch = N // BATCH
+total_steps = EPOCHS * steps_per_epoch
 t_start = time.time()
 
 for ep in range(1, EPOCHS + 1):
@@ -123,8 +125,14 @@ for ep in range(1, EPOCHS + 1):
         # steps at full learning rate.
         step_count += 1
         if step_count <= WARMUP:
-            for g in opt.param_groups:
-                g['lr'] = 2e-4 * step_count / WARMUP
+            lr = 2e-4 * step_count / WARMUP
+        else:
+            # Cosine decay to a tenth: large steps early to move fast, small
+            # steps late so the weights settle instead of jittering.
+            prog = (step_count - WARMUP) / max(total_steps - WARMUP, 1)
+            lr = 2e-4 * (0.1 + 0.9 * 0.5 * (1 + math.cos(math.pi * min(prog, 1.0))))
+        for g in opt.param_groups:
+            g['lr'] = lr
 
         opt.step()
         update_ema()
@@ -135,7 +143,7 @@ for ep in range(1, EPOCHS + 1):
 
     avg = run / steps_per_epoch
     # Sampling every epoch would cost more than training does; every few is plenty.
-    if ep <= 3 or ep % 4 == 0 or ep == EPOCHS:
+    if ep <= 5 or ep % 10 == 0 or ep == EPOCHS:
         samples = diff.sample_ddim(ema, preview_idx, C, guidance=2.0, steps=60, shape=(3, 32, 32))
         write_png(os.path.join(OUT, f'epoch_{ep:03d}.png'), grid(samples), colour=True)
         torch.save({'model': ema.state_dict(), 'classes': NAMES, 'T': T,

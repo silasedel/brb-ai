@@ -234,6 +234,13 @@ app.use('/api/gen/epochs', express.static(path.join(ROOT, 'gen', 'out'), {
   },
 }));
 
+app.use('/api/gen/epochs-colour', express.static(path.join(ROOT, 'gen', 'out_color'), {
+  setHeaders: (res, p) => {
+    if (p.endsWith('.png')) res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'no-cache');
+  },
+}));
+
 app.get('/learn', (_req, res) => res.sendFile(path.join(ROOT, 'server', 'learn.html')));
 
 /* ------------------------------ drawings ------------------------------ */
