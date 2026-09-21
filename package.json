@@ -14,7 +14,8 @@
     "build:site": "VITE_STANDALONE=1 vite build && touch docs/.nojekyll",
     "train": "python3 gen/train.py",
     "draw": "python3 gen/serve.py",
-    "fetch-data": "python3 gen/fetch_data.py"
+    "fetch-data": "python3 gen/fetch_data.py",
+    "autostart:off": "node scripts/autostart-off.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.278",
