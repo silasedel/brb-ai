@@ -103,6 +103,18 @@ Guidance scale matters more than extra training here — a sweep from 0 to 8
 showed high guidance over-draws these doodles into scribbles, so the default is
 a mild **1.0**.
 
+### Is it just copying?
+
+No, and the page proves it rather than asserting it.
+
+The model is **7.5 MB**. The drawings it learned from are **376 MB**. There is
+physically nowhere to store them, so it had to learn what things look like
+instead.
+
+The `is it just copying?` panel makes that checkable: it draws something new,
+then searches all 30,000 real training drawings of that subject for the closest
+match and shows them side by side. They're never the same picture.
+
 ### Watch it learn
 
 `http://localhost:4317/learn`

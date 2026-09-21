@@ -86,6 +86,25 @@
   .picker button:disabled{opacity:.45;cursor:default}
   @media(max-width:700px){.drawbox{flex-direction:column}.canvas{width:100%;height:auto;aspect-ratio:1}}
 
+  .proofbox{display:flex;gap:24px;background:var(--surface);border:1px solid var(--line);
+            border-radius:14px;padding:20px;margin-bottom:34px;flex-wrap:wrap}
+  .proof-copy{flex:1;min-width:260px}
+  .proof-copy p{margin:0 0 11px;font-size:13.5px;line-height:1.6;color:var(--ink-2)}
+  .proof-copy b{color:var(--ink);font-weight:600}
+  .proof-picker{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+  .proof-picker button{padding:6px 11px;font-size:12px}
+  .proof-picker button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .proof-result{display:flex;gap:16px;align-items:flex-start;min-width:300px}
+  .proof-col{text-align:center}
+  .proof-col .lab{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;
+                  color:var(--ink-3);margin-bottom:6px}
+  .proof-col img{width:104px;height:104px;image-rendering:pixelated;border:1px solid var(--line);
+                 border-radius:9px;background:#fff;display:block}
+  .proof-col.made img{border-color:var(--accent);border-width:2px}
+  .proof-row{display:flex;gap:8px}
+  .proof-empty{color:var(--ink-3);font-size:12.5px;padding:34px 10px}
+  .proof-note{font-size:11px;color:var(--ink-3);margin-top:9px;line-height:1.5}
+
   .waiting{padding:70px 20px;text-align:center;color:var(--ink-3);font-size:14px}
   .waiting b{display:block;color:var(--ink-2);font-size:16px;margin-bottom:6px}
   @media(max-width:860px){
@@ -125,6 +144,27 @@
         <div class="scrim" id="drawscrim">pick something below</div>
       </div>
       <div class="picker" id="picker"></div>
+    </div>
+  </div>
+
+  <div id="proof-wrap" style="display:none">
+    <p class="section-label">is it just copying? &nbsp;·&nbsp; see for yourself</p>
+    <div class="proofbox">
+      <div class="proof-copy">
+        <p>
+          The model is <b>7.5&nbsp;MB</b>. The drawings it learned from are <b>376&nbsp;MB</b>.
+          It has nowhere to store them — so it had to learn what things look like instead.
+        </p>
+        <p>
+          Here's the test: draw something new, then search all 30,000 real training
+          drawings of that thing for the closest match. If it were copying, they'd be
+          identical.
+        </p>
+        <div class="proof-picker" id="proof-picker"></div>
+      </div>
+      <div class="proof-result" id="proof-result">
+        <div class="proof-empty">pick something to test</div>
+      </div>
     </div>
   </div>
 
@@ -198,6 +238,7 @@ function build() {
 
   $('#compare-wrap').style.display = '';
   buildPicker();
+  buildProof();
   $('#compare').innerHTML = HEROES.map((h) => `
     <div class="pair" data-name="${h}">
       <div class="row">
@@ -258,6 +299,44 @@ async function watchDraw(subject, btn) {
   } finally {
     drawing = false;
     document.querySelectorAll('.picker button').forEach((b) => { b.disabled = false; });
+  }
+}
+
+function buildProof() {
+  $('#proof-wrap').style.display = '';
+  $('#proof-picker').innerHTML = classes
+    .map((c) => `<button data-c="${c}">${c}</button>`).join('');
+  $('#proof-picker').onclick = (e) => {
+    const b = e.target.closest('button');
+    if (b && !b.disabled) runProof(b.dataset.c, b);
+  };
+}
+
+async function runProof(subject, btn) {
+  document.querySelectorAll('#proof-picker button').forEach((b) => {
+    b.disabled = true; b.classList.toggle('on', b === btn);
+  });
+  $('#proof-result').innerHTML = '<div class="proof-empty">drawing, then searching 30,000 real ones…</div>';
+  try {
+    const d = await (await fetch('/api/gen/proof', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject }),
+    })).json();
+    if (!d.generated) throw new Error();
+    $('#proof-result').innerHTML = `
+      <div class="proof-col made">
+        <div class="lab">it drew this</div>
+        <img src="${d.generated}" alt="generated ${d.subject}">
+      </div>
+      <div class="proof-col">
+        <div class="lab">closest real ones it trained on</div>
+        <div class="proof-row">${d.nearest.map((n) => `<img src="${n.url}" alt="nearest">`).join('')}</div>
+        <div class="proof-note">searched ${d.searched.toLocaleString()} real drawings · not one is a match</div>
+      </div>`;
+  } catch {
+    $('#proof-result').innerHTML = '<div class="proof-empty">drawing model isn\'t running</div>';
+  } finally {
+    document.querySelectorAll('#proof-picker button').forEach((b) => { b.disabled = false; });
   }
 }
 

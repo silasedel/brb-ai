@@ -53,17 +53,39 @@ class Block(nn.Module):
         return h + self.skip(x)
 
 
-class UNet(nn.Module):
-    """28 -> 14 -> 7 -> 14 -> 28, with skip connections."""
+class Attention(nn.Module):
+    """Single-head self-attention. Colour images need the global context that
+    convolutions alone don't give -- it's what keeps a horse's legs attached."""
 
-    def __init__(self, n_classes: int, base: int = 64, emb: int = 64):
+    def __init__(self, ch: int):
+        super().__init__()
+        self.norm = nn.GroupNorm(8, ch)
+        self.qkv = nn.Conv2d(ch, ch * 3, 1)
+        self.out = nn.Conv2d(ch, ch, 1)
+        self.scale = ch ** -0.5
+
+    def forward(self, x):
+        b, c, h, w = x.shape
+        q, k, v = self.qkv(self.norm(x)).reshape(b, 3, c, h * w).unbind(1)
+        att = torch.softmax(q.transpose(1, 2) @ k * self.scale, dim=-1)
+        return x + self.out((v @ att.transpose(1, 2)).reshape(b, c, h, w))
+
+
+class UNet(nn.Module):
+    """Two downsamples and back, with skip connections. Works for 28x28 grey
+    doodles and 32x32 colour alike -- `in_ch` and `base` do the adapting."""
+
+    def __init__(self, n_classes: int, base: int = 64, emb: int = 64,
+                 in_ch: int = 1, attn: bool = False):
         super().__init__()
         e = emb * 4
+        self.in_ch = in_ch
         self.time = TimeEmbedding(emb)
         # One extra embedding row is the "no class" token used by guidance.
         self.label = nn.Embedding(n_classes + 1, e)
+        self.attn = Attention(base * 2) if attn else None
 
-        self.inp = nn.Conv2d(1, base, 3, padding=1)
+        self.inp = nn.Conv2d(in_ch, base, 3, padding=1)
         self.d1 = Block(base, base, e)
         self.d2 = Block(base, base * 2, e)
         self.d3 = Block(base * 2, base * 2, e)
@@ -71,7 +93,7 @@ class UNet(nn.Module):
         self.u3 = Block(base * 4, base * 2, e)
         self.u2 = Block(base * 4, base, e)
         self.u1 = Block(base * 2, base, e)
-        self.out = nn.Sequential(nn.GroupNorm(8, base), nn.SiLU(), nn.Conv2d(base, 1, 3, padding=1))
+        self.out = nn.Sequential(nn.GroupNorm(8, base), nn.SiLU(), nn.Conv2d(base, in_ch, 3, padding=1))
 
     def forward(self, x, t, y):
         e = self.time(t) + self.label(y)
@@ -81,6 +103,8 @@ class UNet(nn.Module):
         h3 = self.d3(F.avg_pool2d(h2, 2), e)      # 7
 
         m = self.mid(h3, e)
+        if self.attn is not None:
+            m = self.attn(m)
 
         u = self.u3(torch.cat([m, h3], 1), e)
         u = F.interpolate(u, scale_factor=2, mode='nearest')
@@ -106,11 +130,11 @@ class Diffusion:
         return self.sqrt_acp[t][:, None, None, None] * x0 + self.sqrt_one_minus_acp[t][:, None, None, None] * noise
 
     @torch.no_grad()
-    def sample(self, model, labels, n_classes, guidance=3.0, steps=None):
+    def sample(self, model, labels, n_classes, guidance=3.0, steps=None, shape=(1, 28, 28)):
         """Denoises pure noise into images of the requested classes."""
         model.eval()
         n = labels.shape[0]
-        x = torch.randn(n, 1, 28, 28, device=self.device)
+        x = torch.randn(n, *shape, device=self.device)
         null = torch.full_like(labels, n_classes)  # the "no class" token
 
         for i in reversed(range(self.T)):
@@ -135,7 +159,7 @@ class Diffusion:
         return x.clamp(-1, 1)
 
     @torch.no_grad()
-    def sample_ddim(self, model, labels, n_classes, guidance=3.0, steps=60, capture=0):
+    def sample_ddim(self, model, labels, n_classes, guidance=3.0, steps=60, capture=0, shape=(1, 28, 28)):
         """
         Deterministic sampling over a strided subset of timesteps.
 
@@ -144,7 +168,7 @@ class Diffusion:
         """
         model.eval()
         n = labels.shape[0]
-        x = torch.randn(n, 1, 28, 28, device=self.device)
+        x = torch.randn(n, *shape, device=self.device)
         null = torch.full_like(labels, n_classes)
 
         seq = torch.linspace(0, self.T - 1, steps).long().flip(0).tolist()

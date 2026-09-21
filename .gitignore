@@ -10,3 +10,5 @@ gen/data/
 gen/out/
 __pycache__/
 *.pyc
+gen/cifar/
+gen/out_color/

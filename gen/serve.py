@@ -12,6 +12,7 @@ import torch
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import UNet, Diffusion
 from png import write_png
+from nearest import nearest as nearest_neighbours
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, 'out')
@@ -31,7 +32,9 @@ def pick_device():
     if forced:
         return forced
     try:
-        busy = subprocess.run(['pgrep', '-f', 'gen/train.py'],
+        # Matches train.py and train_color.py alike -- naming a single script
+        # here is how this regressed once already.
+        busy = subprocess.run(['pgrep', '-f', 'gen/train'],
                               capture_output=True, text=True).stdout.strip()
         if busy:
             return 'cpu'
@@ -114,8 +117,49 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, {'error': 'not found'})
 
     def do_POST(self):
+        if self.path == '/proof':
+            return self.proof()
         if self.path != '/draw':
             return self._send(404, {'error': 'not found'})
+
+    def proof(self):
+        """Draws something, then digs up its closest matches in the training set."""
+        try:
+            body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or b'{}')
+        except Exception:
+            return self._send(400, {'error': 'bad json'})
+        if not load_if_newer():
+            return self._send(503, {'error': 'model not ready'})
+
+        want = str(body.get('subject', '')).strip().lower()
+        classes = _state['classes']
+        idx = next((i for i, c in enumerate(classes) if c == want), None)
+        if idx is None:
+            return self._send(422, {'error': 'unknown subject', 'classes': classes})
+
+        t0 = time.time()
+        sample = draw(idx, 1, float(body.get('guidance', 1.0)), int(body.get('steps', 80)))
+        stamp = int(time.time() * 1000)
+
+        gen_name = f'proof_{stamp}_gen.png'
+        to_png(sample[0], os.path.join(IMG, gen_name))
+
+        # Model output is in [-1,1]; training data is [0,1].
+        as01 = ((sample[0, 0].cpu().numpy() + 1) / 2).clip(0, 1)
+        hits = nearest_neighbours(as01, classes[idx], k=3)
+
+        near = []
+        for j, (dist, img) in enumerate(hits):
+            name = f'proof_{stamp}_near{j}.png'
+            t = torch.from_numpy(img * 2 - 1).unsqueeze(0)
+            to_png(t, os.path.join(IMG, name))
+            near.append({'url': f'/api/gen/img/{name}', 'distance': round(dist, 2)})
+
+        self._send(200, {'subject': classes[idx],
+                         'generated': f'/api/gen/img/{gen_name}',
+                         'nearest': near,
+                         'searched': 30000,
+                         'ms': int((time.time() - t0) * 1000)})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or b'{}')
         except Exception:

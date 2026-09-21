@@ -257,6 +257,19 @@ app.post('/api/gen/draw', async (req, res) => {
   }
 });
 
+app.post('/api/gen/proof', async (req, res) => {
+  try {
+    const r = await fetch(`http://127.0.0.1:${process.env.GEN_PORT ?? 4319}/proof`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body ?? {}),
+    });
+    res.status(r.status).json(await r.json());
+  } catch {
+    res.status(503).json({ error: 'drawing model not running' });
+  }
+});
+
 app.get('/api/gen/status', async (_req, res) => {
   try {
     const r = await fetch(`http://127.0.0.1:${process.env.GEN_PORT ?? 4319}/status`);
