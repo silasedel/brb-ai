@@ -7,6 +7,9 @@ import type { Conversation, MemoryItem } from '../types';
  */
 const t = (mins: number) => Date.now() - mins * 60_000;
 
+/** Base path differs between the local build ('/') and GitHub Pages ('/brb-ai/'). */
+const B = import.meta.env.BASE_URL;
+
 let n = 0;
 const m = (role: 'user' | 'assistant', content: string, extra: Record<string, unknown> = {}) => ({
   id: `demo-${++n}`,
@@ -19,6 +22,19 @@ const m = (role: 'user' | 'assistant', content: string, extra: Record<string, un
 export const DEMO_CONVERSATIONS = (): Conversation[] => {
   n = 0;
   return [
+    {
+      id: 'demo-draw',
+      title: 'draw me a cat',
+      createdAt: t(85), updatedAt: t(80), pinned: false, autoTitled: true,
+      messages: [
+        m('user', 'yo draw me a cat'),
+        m('assistant', `![cat](${B}samples/cat.png)\n\nlil 28x28 guy\n\nnot exactly a renaissance portrait but u can tell`),
+        m('user', 'ok do a bicycle and an ice cream'),
+        m('assistant', `![bicycle](${B}samples/bicycle.png)\n![ice cream](${B}samples/ice_cream.png)\n\nbike came out clean ngl`),
+        m('user', 'draw me a dragon'),
+        m('assistant', 'no dragon in the model sadly\n\nclosest vibes i got are octopus (tentacles), fish (scales), or cat (small angry creature)\n\nwant one of those or nah'),
+      ],
+    },
     {
       id: 'demo-texting',
       title: 'rust worth learning',

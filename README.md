@@ -106,16 +106,25 @@ brb   lil 28x28 guy
 brb   not exactly architectural but it's got vibes
 ```
 
-Drawings take about **750ms** (60-step DDIM; full 400-step sampling took 10s and
-was too slow to sit behind a chat message).
+Drawings take about **300ms** on the GPU (80-step DDIM; full 400-step sampling
+took 10s, far too slow to sit behind a chat message).
+
+Guidance scale matters more than extra training here — a sweep from 0 to 8
+showed high guidance over-draws these doodles into scribbles, so the default is
+a mild **1.0**.
 
 ### Watch it learn
 
 `http://localhost:4317/learn`
 
-The same 16 prompts, re-rendered after every training pass, so you watch them
-resolve out of pure static. It updates live while training runs, with a scrubber
-and the loss curve. This is the good bit.
+Three things on one page:
+
+- **first attempt → latest**, side by side, so the learning is visible at a glance
+- **watch it draw** — pick a subject and see a drawing resolve out of static,
+  frame by frame, which is the actual denoising process
+- **every epoch**, scrubbable and autoplaying, with the loss curve
+
+It updates live while training is still running.
 
 ### Training it yourself
 
@@ -125,8 +134,9 @@ npm run train        # ~2 hours on an M3 Max, checkpoints every epoch
 npm run draw         # serves the finished model to the chat
 ```
 
-The model is usable from the first epoch — it just gets better. Loss went
-0.0914 → 0.0660 between epochs 1 and 2, by which point bicycles had two wheels.
+The model is usable from the first epoch — it just gets better. The finished run
+was **16 epochs in 91 minutes** on an M3 Max, loss 0.0914 → 0.0540. Bicycles had
+two wheels by epoch 2.
 
 ---
 

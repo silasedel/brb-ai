@@ -238,7 +238,7 @@ async function watchDraw(subject, btn) {
     const r = await fetch('/api/gen/draw', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subject, capture: 16, steps: 60 }),
+      body: JSON.stringify({ subject, capture: 16, steps: 80, guidance: 1.0 }),
     });
     const d = await r.json();
     if (!d.frames?.length) throw new Error('no frames');

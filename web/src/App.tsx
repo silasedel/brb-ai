@@ -453,7 +453,8 @@ export default function App() {
                 <>
                   <div className="b">
                     these are real saved chats — scroll em. to talk to it urself, add an anthropic
-                    api key. free to make, and it never leaves this browser.
+                    api key. free to make, and it never leaves this browser. (the drawings were made
+                    by a model trained from scratch — that part only runs locally, see the repo.)
                   </div>
                   <button className="btn primary" style={{ marginTop: 10 }} onClick={() => setShowKey(true)}>
                     add api key

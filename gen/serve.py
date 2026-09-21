@@ -4,7 +4,7 @@ Keeps the trained generator warm in memory and draws on request.
 The chat app talks to this over HTTP rather than spawning Python per image --
 loading the checkpoint each time would add seconds to every drawing.
 """
-import json, os, sys, threading, time
+import json, os, subprocess, sys, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import torch
@@ -19,10 +19,28 @@ IMG = os.path.join(OUT, 'images')
 os.makedirs(IMG, exist_ok=True)
 PORT = int(os.environ.get('GEN_PORT', 4319))
 
-# CPU by default and on purpose. Two processes both grabbing MPS contend badly
-# on Apple Silicon -- it nearly froze the trainer -- and one 28x28 image is
-# quick on CPU anyway. Set GEN_DEVICE=mps once training is finished if you want.
-dev = os.environ.get('GEN_DEVICE', 'cpu')
+def pick_device():
+    """
+    GPU when it's free, CPU while training holds it.
+
+    Two processes both grabbing MPS contend badly on Apple Silicon -- it nearly
+    froze the trainer during development. A single 28x28 sample is quick on CPU
+    anyway, so yielding the GPU costs almost nothing.
+    """
+    forced = os.environ.get('GEN_DEVICE')
+    if forced:
+        return forced
+    try:
+        busy = subprocess.run(['pgrep', '-f', 'gen/train.py'],
+                              capture_output=True, text=True).stdout.strip()
+        if busy:
+            return 'cpu'
+    except Exception:
+        pass
+    return 'mps' if torch.backends.mps.is_available() else 'cpu'
+
+
+dev = pick_device()
 _lock = threading.Lock()
 _state = {'model': None, 'classes': [], 'diff': None, 'mtime': 0}
 
@@ -116,8 +134,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(422, {'error': 'unknown subject', 'classes': classes})
 
         n = max(1, min(4, int(body.get('n', 1))))
-        guidance = float(body.get('guidance', 3.0))
-        steps = max(20, min(200, int(body.get('steps', 60))))
+        guidance = float(body.get('guidance', 1.0))
+        steps = max(20, min(200, int(body.get('steps', 80))))
         capture = max(0, min(24, int(body.get('capture', 0))))
         t0 = time.time()
 
