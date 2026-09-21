@@ -24,15 +24,17 @@ export const DEMO_CONVERSATIONS = (): Conversation[] => {
   return [
     {
       id: 'demo-draw',
-      title: 'draw me a cat',
-      createdAt: t(85), updatedAt: t(80), pinned: false, autoTitled: true,
+      title: 'draw me an elephant',
+      createdAt: t(90), updatedAt: t(86), pinned: false, autoTitled: true,
       messages: [
-        m('user', 'yo draw me a cat'),
-        m('assistant', `![cat](${B}samples/cat.png)\n\nlil 28x28 guy\n\nnot exactly a renaissance portrait but u can tell`),
-        m('user', 'ok do a bicycle and an ice cream'),
-        m('assistant', `![bicycle](${B}samples/bicycle.png)\n![ice cream](${B}samples/ice_cream.png)\n\nbike came out clean ngl`),
+        m('user', 'yo draw me an elephant'),
+        m('assistant', `![elephant](${B}samples/elephant.png)\n\n32x32 so hes blurry but thats an elephant`),
+        m('user', 'do a tiger and a sunflower'),
+        m('assistant', `![tiger](${B}samples/tiger.png)\n![sunflower](${B}samples/sunflower.png)\n\ntiger came out better than expected ngl`),
+        m('user', 'castle?'),
+        m('assistant', `![castle](${B}samples/castle.png)\n\nkinda. its giving medieval blur`),
         m('user', 'draw me a dragon'),
-        m('assistant', 'no dragon in the model sadly\n\nclosest vibes i got are octopus (tentacles), fish (scales), or cat (small angry creature)\n\nwant one of those or nah'),
+        m('assistant', 'no dragon in the model sadly\n\nit knows 100 real things — animals, plants, vehicles, places. no mythology\n\nclosest vibes: dinosaur, snake, or crocodile'),
       ],
     },
     {

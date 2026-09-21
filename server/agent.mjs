@@ -169,14 +169,22 @@ function abortControllerFrom(signal) {
 async function drawBlock() {
   const st = await drawStatus();
   if (!st.ready || !st.classes?.length) return { block: '', canDraw: false };
+
+  const colour = st.models?.colour?.ready;
+  const kinds = colour
+    ? `two models, both trained from scratch on this machine: a colour one (${st.models.colour.subjects} real objects, 32x32 photos) and a doodle one (${st.models.doodle.subjects} black-and-white line drawings). it picks whichever knows what they asked for, preferring colour.`
+    : `a model trained from scratch on this machine (${st.models?.doodle?.subjects ?? st.classes.length} black-and-white line drawings).`;
+
   return {
     canDraw: true,
     block: `\n\n# u can draw now
-u have a \`draw\` tool. its an image model that was trained from scratch on this machine — claude cant make images, but this can, so use it whenever someone asks for a picture.
+u have a \`draw\` tool — claude cant make images, but this can, so use it whenever someone asks for a picture.
 
-it only knows these ${st.classes.length} things: ${st.classes.join(', ')}.
-map what they asked to the closest one ("kitty" -> cat, "slice" -> pizza). if nothing fits, say what u can draw instead of refusing flatly.
-the drawings are 28x28 doodles and genuinely rough. own it — thats the charm, dont apologise for it.
+its ${kinds}
+
+it knows these ${st.classes.length} things: ${st.classes.join(', ')}.
+map what they asked to the closest one ("kitty" -> cat, "big grey animal" -> elephant). if nothing fits, say what u CAN draw instead of refusing flatly.
+the images are tiny — 32x32 colour photos or 28x28 doodles — so theyre blurry and rough. own it, dont apologise for it, and dont call a colour photo a doodle.
 when the tool gives u a markdown image line, paste it into ur reply exactly, on its own line.`,
   };
 }

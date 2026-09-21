@@ -56,9 +56,11 @@ COLOUR_MIN_EPOCHS = 20
 
 _models = {
     'colour': {'dir': OUT_COLOR, 'model': None, 'classes': [], 'diff': None,
-               'mtime': 0, 'shape': (3, 32, 32), 'colour': True, 'epochs': 0},
+               'mtime': 0, 'shape': (3, 32, 32), 'colour': True, 'epochs': 0,
+               'guidance': 2.5},
     'doodle': {'dir': OUT, 'model': None, 'classes': [], 'diff': None,
-               'mtime': 0, 'shape': (1, 28, 28), 'colour': False, 'epochs': 0},
+               'mtime': 0, 'shape': (1, 28, 28), 'colour': False, 'epochs': 0,
+               'guidance': 1.0},
 }
 
 
@@ -272,7 +274,7 @@ class Handler(BaseHTTPRequestHandler):
         classes = st['classes']
 
         n = max(1, min(4, int(body.get('n', 1))))
-        guidance = float(body.get('guidance', 1.0))
+        guidance = float(body.get('guidance', st['guidance']))
         steps = max(20, min(200, int(body.get('steps', 80))))
         capture = max(0, min(24, int(body.get('capture', 0))))
         t0 = time.time()

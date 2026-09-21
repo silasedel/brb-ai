@@ -75,16 +75,25 @@ inspect or correct is a liability, so all of it is visible and yours.
 
 ---
 
-## It can draw — using a model it trained itself
+## It can draw — using models it trained itself
 
 Claude cannot produce an image. Not a limitation of the app; the model simply
-has no way to emit pixels. So the app ships with one that does.
+has no way to emit pixels. So the app ships with two that do.
 
-`gen/` is a **class-conditional diffusion model written from scratch** — no
-`diffusers`, no pretrained weights, no model zoo. Just the DDPM maths, a small
-UNet, a cosine noise schedule and classifier-free guidance. 1.96M parameters,
-trained on **1.9 million human doodles** from Google's Quick Draw set across 16
-subjects.
+`gen/` holds **class-conditional diffusion models written from scratch** — no
+`diffusers`, no pretrained weights, no model zoo. Just the DDPM maths, a UNet,
+a cosine noise schedule, classifier-free guidance and an EMA of the weights.
+
+| | colour | doodle |
+|---|---|---|
+| subjects | **100 real objects** | 16 line drawings |
+| output | 32×32 RGB photographs | 28×28 black and white |
+| trained on | 50,000 CIFAR-100 photos | 1.9M Quick Draw doodles |
+| size | 7.5M params | 2.0M params |
+| run | 280 epochs, 7 hours | 16 epochs, 91 min |
+
+The chat picks whichever model knows the subject, preferring colour — so asking
+for an elephant works even though the doodle set has no elephant.
 
 Then it's handed to the chat as a tool:
 
@@ -96,12 +105,12 @@ brb   lil 28x28 guy
 brb   not exactly architectural but it's got vibes
 ```
 
-Drawings take about **300ms** on the GPU (80-step DDIM; full 400-step sampling
-took 10s, far too slow to sit behind a chat message).
+Drawings take about **300–700ms** on the GPU (80-step DDIM; full 400-step
+sampling took 10s, far too slow to sit behind a chat message).
 
-Guidance scale matters more than extra training here — a sweep from 0 to 8
-showed high guidance over-draws these doodles into scribbles, so the default is
-a mild **1.0**.
+Guidance was swept separately for each model, because they want opposite things:
+line doodles smear into scribbles above ~1.0, while photographs need ~2.5 before
+they commit to a subject.
 
 ### Is it just copying?
 
@@ -132,13 +141,14 @@ It updates live while training is still running.
 
 ```bash
 npm run fetch-data   # ~2GB of Quick Draw bitmaps
-npm run train        # ~2 hours on an M3 Max, checkpoints every epoch
-npm run draw         # serves the finished model to the chat
+npm run train        # doodles: ~90 min on an M3 Max
+python3 gen/train_color.py   # colour: ~7 hours (EPOCHS=280)
+npm run draw         # serves the finished models to the chat
 ```
 
-The model is usable from the first epoch — it just gets better. The finished run
-was **16 epochs in 91 minutes** on an M3 Max, loss 0.0914 → 0.0540. Bicycles had
-two wheels by epoch 2.
+Both checkpoint as they go and are usable from early on — the colour model just
+stays out of the chat's routing until it has had 20 passes, since before that it
+outputs static and a doodle is better.
 
 ---
 

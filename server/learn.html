@@ -390,7 +390,7 @@ function render() {
   $('#ep').textContent = 'epoch ' + e.epoch;
   $('#loss').textContent = e.loss.toFixed(4);
   $('#secs').textContent = e.seconds + 's';
-  $('#s-epochs').textContent = epochs.length;
+  $('#s-epochs').textContent = epochs[epochs.length - 1].epoch;
   $('#s-loss').textContent = epochs[epochs.length - 1].loss.toFixed(4);
   $('#sub').innerHTML = RUNS[mode].blurb;
   $('#s-imgs').textContent = RUNS[mode].imgs;
